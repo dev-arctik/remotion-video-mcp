@@ -1,0 +1,5 @@
+import { Config } from "@remotion/cli/config";
+
+// "jpeg" = fastest render. Change to "png" if scenes need alpha transparency.
+Config.setVideoImageFormat("jpeg");
+Config.setOverwriteOutput(true);
