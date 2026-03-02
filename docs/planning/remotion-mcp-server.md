@@ -1158,12 +1158,12 @@ Since the MCP server doesn't own any persistent service infrastructure, rollback
 
 ---
 
-## Open Questions
+## Open Questions — Resolved
 
-- [ ] Should `capture_frame` return base64 content inline in the tool response, or only the file path? — inline base64 enables Claude vision analysis without the user opening a file, but may be large for high-res frames. Decision needed before Phase 4 implementation.
-- [ ] What is the exact `execa` spawn strategy for `start_preview`? Does the preview server run detached (survives Claude session end) or attached (killed when Claude CLI exits)? — affects `process-manager.ts` design.
-- [ ] Should `init_project` run `npm install` synchronously (blocks until complete) or return immediately and install in background? — synchronous is simpler but may hit MCP tool timeout for slow networks.
-- [ ] Are transitions implemented as separate `TransitionWipe` scene entries inserted between content scenes, or as in-scene overlay animations driven by `transition.in/out` in the scene spec? — the current spec supports both; implementation choice affects how `Root.tsx` is generated.
+- [x] **`capture_frame` base64 vs file path?** — **BOTH.** Return the file path AND base64 inline. Claude can "see" the rendered frame, analyze it visually, and make intelligent editing decisions (e.g., "the text is cut off, let me adjust the font size"). This makes the iterative editing loop much tighter — Claude understands what the user means and what to fix without the user having to describe it.
+- [x] **`start_preview` detached vs attached?** — **ATTACHED (auto-kill).** The preview server dies when the Claude session ends. End users are likely non-developers who won't know how to find and kill orphan Node processes. Cleaner experience — if they want to preview again, they start a new conversation.
+- [x] **`init_project` npm install sync vs background?** — **BACKGROUND.** Run `npm install` in the background and return immediately. Claude uses the wait time to ask the user clarifying questions about the video (style, duration, assets, etc.) — more efficient use of the conversation.
+- [x] **Transitions: separate scenes vs in-scene overlays?** — **BOTH.** Support both approaches — sometimes a transition should be a separate wipe/fade entry between scenes, sometimes it should be an in-scene overlay animation. The choice depends on the type of video. Claude picks the appropriate approach per use case.
 
 ---
 

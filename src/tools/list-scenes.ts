@@ -8,7 +8,7 @@ export function registerListScenes(server: McpServer): void {
     'list_scenes',
     {
       title: 'List Scenes',
-      description: 'Returns the current scenes array from composition.json with computed total duration. Call this whenever you need a snapshot of the current video state.',
+      description: 'Returns the current scenes and overlays from composition.json with computed total duration. Call this whenever you need a snapshot of the current video state.',
       inputSchema: z.object({
         projectPath: z.string().describe('Absolute path to the Remotion project root'),
       }),
@@ -18,15 +18,18 @@ export function registerListScenes(server: McpServer): void {
         await validateProjectPath(projectPath);
         const composition = await readComposition(projectPath);
         const { scenes, settings } = composition;
+        const overlays = composition.overlays ?? [];
         const totalFrames = scenes.reduce((sum, s) => sum + s.durationFrames, 0);
 
         const result = {
           status: 'success',
           scenes,
+          overlays,
           totalFrames,
           totalSeconds: totalFrames / settings.fps,
           fps: settings.fps,
           sceneCount: scenes.length,
+          overlayCount: overlays.length,
         };
 
         return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };

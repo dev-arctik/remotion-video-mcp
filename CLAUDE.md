@@ -23,6 +23,9 @@ MCP server that bridges Claude and Remotion for programmatic video creation. Cla
 3. **Template components are pre-built** — Claude selects templates and passes props/data. The `custom` scene type with `objects` array is the escape hatch for full flexibility.
 4. **Stateless between tool calls** — the server reads composition.json from disk on each call. No in-memory state that could desync.
 5. **Audio is the timeline master** for narration-driven videos — scene durations calculated from audio timestamps.
+6. **Overlays persist in composition.json** — overlays are registered via `add_overlay` and stored in `overlays[]`. `regenerateRootTsx()` reads them and generates imports + render blocks, so overlays survive all scene mutations.
+7. **write_file enables custom code** — Claude can write theme files, custom components, and utils beyond the template library. Protected files (Root.tsx, composition.json, etc.) cannot be overwritten.
+8. **import_asset bridges temp uploads** — files uploaded in Claude Desktop land in temp dirs; `import_asset` copies them into `assets/{category}/` so `staticFile()` can find them.
 
 ### MCP Server Structure (this repo)
 
@@ -30,22 +33,27 @@ MCP server that bridges Claude and Remotion for programmatic video creation. Cla
 src/
 ├── index.ts                    # Entry point — creates server + stdio transport
 ├── server.ts                   # McpServer setup, registers all tools
-├── tools/                      # One file per MCP tool
+├── tools/                      # One file per MCP tool (18 tools)
 │   ├── start-session.ts
 │   ├── init-project.ts
 │   ├── scan-assets.ts
+│   ├── import-asset.ts         # Copy uploaded files from temp into assets/
 │   ├── create-scene.ts
 │   ├── update-scene.ts
 │   ├── delete-scene.ts
 │   ├── reorder-scenes.ts
-│   ├── list-scenes.ts
+│   ├── list-scenes.ts          # Also returns overlays[]
 │   ├── update-composition.ts
+│   ├── write-file.ts           # Write custom .tsx/.ts/.css/.json files
+│   ├── read-file.ts            # Read any project file
+│   ├── add-overlay.ts          # Register persistent global overlay
+│   ├── remove-overlay.ts       # Remove overlay from composition
 │   ├── start-preview.ts
 │   ├── stop-preview.ts
 │   ├── capture-frame.ts
 │   └── render-video.ts
 ├── state/
-│   └── project-state.ts        # Reads/writes composition.json
+│   └── project-state.ts        # Reads/writes composition.json, Composition/Scene/Overlay interfaces
 ├── templates/                  # Remotion components copied into user projects
 │   ├── components/             # TitleCard, TextScene, ImageScene, etc.
 │   ├── SceneRenderer.tsx       # Routes scene type → component (copied once, never regenerated)
@@ -96,6 +104,18 @@ npm run typecheck    # Type checking without emit
 - Error responses follow: `{ status: "error", message: string, suggestion: string }`
 - Success responses follow: `{ status: "success", ...data, next_steps: string }`
 
+## Overlay System
+
+- `composition.json` stores `overlays?: Overlay[]` alongside `scenes[]`
+- Each overlay has: `id`, `name`, `componentName`, `file`, `zIndex`, optional `startFrame`/`endFrame`
+- `regenerateRootTsx()` generates `<AbsoluteFill>` wrappers per overlay, sorted by zIndex ascending
+- Partial-duration overlays are wrapped in `<Sequence from={} durationInFrames={}>`
+- Full-duration overlays (no startFrame/endFrame) render for the entire video
+
+## Protected Files (write_file cannot overwrite these)
+
+`composition.json`, `src/Root.tsx`, `src/SceneRenderer.tsx`, `package.json`, `tsconfig.json`, `remotion.config.ts`, `src/index.ts`
+
 ## Important Remotion API Notes
 
 - `staticFile()` references files from the `public/` directory — in our scaffolded project, assets go in `public/` (symlinked or copied from `assets/`)
@@ -141,6 +161,6 @@ await server.connect(transport);
 
 1. **Phase 1 — Foundation**: MCP server + start_session + init_project + list_scenes
 2. **Phase 2 — Scenes**: Template components + create/update/delete/reorder scenes
-3. **Phase 3 — Assets & Audio**: scan_assets + audio timestamp parsing + audio sync
+3. **Phase 3 — Assets & Audio**: scan_assets + import_asset + audio timestamp parsing + audio sync
 4. **Phase 4 — Preview & Render**: start/stop preview + capture_frame + render_video
-5. **Phase 5 — Polish**: Transitions, KineticTypography, CodeBlock, error handling
+5. **Phase 5 — Custom File Ops & Overlays**: write_file + read_file + add_overlay + remove_overlay + overlay-aware Root.tsx generation

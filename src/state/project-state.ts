@@ -33,6 +33,18 @@ export interface Composition {
     backgroundMusic?: Record<string, unknown>;
   };
   scenes: Scene[];
+  overlays?: Overlay[];
+}
+
+// Overlay — a component that renders on top of scenes (e.g., logo, watermark, animation)
+export interface Overlay {
+  id: string;
+  name: string;
+  componentName: string; // must match the named export in the .tsx file
+  file: string;          // project-relative path, e.g. "src/overlays/BouncingBall.tsx"
+  zIndex: number;        // render order — higher renders on top; default 10
+  startFrame?: number;   // first frame the overlay appears — omit for full-video-duration
+  endFrame?: number;     // last frame the overlay appears — omit for full-video-duration
 }
 
 export interface Scene {

@@ -31,6 +31,9 @@ Claude acts as the creative brain. The MCP server acts as the bridge to a Remoti
 - **Final render** — produce MP4/WebM output at draft, standard, or high quality
 - **Template library** — TitleCard, TextScene, ImageScene, KineticTypography, CodeBlock, and more
 - **Custom animations** — object-level animation system with spring physics and easing
+- **Asset import** — copy uploaded images, audio, and fonts from temp paths directly into the project
+- **Custom components** — write arbitrary code files (themes, utils, components) beyond the template library
+- **Overlay system** — persistent global overlays (logos, watermarks, animations) that survive scene edits
 
 ## MCP Tools
 
@@ -39,12 +42,17 @@ Claude acts as the creative brain. The MCP server acts as the bridge to a Remoti
 | `start_session` | Onboarding questionnaire — always called first |
 | `init_project` | Scaffold a new Remotion project |
 | `scan_assets` | Scan and analyze images, audio, and fonts in the assets folder |
+| `import_asset` | Copy uploaded files from temp paths into the project's assets directory |
 | `create_scene` | Create a new scene file with template or custom animations |
 | `update_scene` | Modify an existing scene's props, animations, or duration |
 | `delete_scene` | Remove a scene from the project |
 | `reorder_scenes` | Change the order of scenes in the composition |
-| `list_scenes` | List all scenes with their current state |
+| `list_scenes` | List all scenes and overlays with their current state |
 | `update_composition` | Update global settings (style, audio, dimensions) |
+| `write_file` | Write custom code files (.tsx, .ts, .css, .json) to the project |
+| `read_file` | Read any file from the project for inspection |
+| `add_overlay` | Register a component as a persistent global overlay |
+| `remove_overlay` | Remove an overlay from the composition |
 | `start_preview` | Launch Remotion Studio dev server |
 | `stop_preview` | Stop the dev server |
 | `capture_frame` | Render a single frame as PNG for review |
@@ -106,8 +114,8 @@ Add the MCP server to your Claude CLI or Claude Desktop config:
 1. Start a conversation with Claude
 2. Say something like *"I want to create a product explainer video"*
 3. Claude walks you through the onboarding questions (purpose, duration, audio, style)
-4. Claude scaffolds the project and you drop assets into the `assets/` folder
-5. Claude creates scenes, you preview in the browser, iterate, and render
+4. Claude scaffolds the project — upload images/audio directly in the chat and Claude imports them automatically
+5. Claude creates scenes, adds overlays, you preview in the browser, iterate, and render
 
 ## Project Structure
 

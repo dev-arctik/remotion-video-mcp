@@ -162,6 +162,7 @@ export async function regenerateRootTsx(
   composition: Composition
 ): Promise<void> {
   const { settings, scenes, audio } = composition;
+  const overlays = (composition.overlays ?? []).sort((a, b) => a.zIndex - b.zIndex);
 
   // Guard against zero-duration — Remotion rejects durationInFrames: 0
   const totalFrames =
@@ -199,10 +200,40 @@ export async function regenerateRootTsx(
     audioJsx += `\n        {/* Background music */}\n        <Audio\n          src={staticFile('${bgFile}')}\n          volume={${volume}}\n          loop={${loop}}\n        />`;
   }
 
+  // Overlay imports — each overlay is a named export from a project-relative file
+  const overlayImports = overlays
+    .map((o) => `import { ${o.componentName} } from '../${o.file.replace(/\.tsx$/, '')}';`)
+    .join('\n');
+
+  // Overlay render blocks — full-duration or partial-duration (wrapped in <Sequence>)
+  const overlayRenderBlocks = overlays
+    .map((o) => {
+      const inner =
+        `      <AbsoluteFill style={{ zIndex: ${o.zIndex}, pointerEvents: 'none' as const }}>\n` +
+        `        <${o.componentName} />\n` +
+        `      </AbsoluteFill>`;
+      // Partial-duration overlays wrapped in <Sequence>
+      if (o.startFrame != null || o.endFrame != null) {
+        const from = o.startFrame ?? 0;
+        const durationProp = o.endFrame != null ? ` durationInFrames={${o.endFrame - from}}` : '';
+        return `      {/* Overlay: ${o.name} (frames ${from}–${o.endFrame ?? 'end'}) */}\n` +
+          `      <Sequence from={${from}}${durationProp}>\n${inner}\n      </Sequence>`;
+      }
+      return `      {/* Overlay: ${o.name} — full duration */}\n${inner}`;
+    })
+    .join('\n');
+
+  // Conditionally add AbsoluteFill and Sequence to remotion imports when overlays exist
+  const hasPartialOverlays = overlays.some((o) => o.startFrame != null || o.endFrame != null);
+  const remotionImports = overlays.length > 0
+    ? `Composition, Series, AbsoluteFill${hasPartialOverlays ? ', Sequence' : ''}`
+    : 'Composition, Series';
+
   const rootContent = `import React from 'react';
-import { Composition, Series } from 'remotion';
+import { ${remotionImports} } from 'remotion';
 ${hasAudio ? audioImport : ''}
 ${sceneImports}
+${overlayImports}
 
 // Auto-generated from composition.json — do not edit directly
 export const RemotionRoot: React.FC = () => {
@@ -226,6 +257,7 @@ const MainComposition: React.FC = () => {
       <Series>
 ${seriesEntries}
       </Series>${audioJsx}
+${overlayRenderBlocks}
     </>
   );
 };

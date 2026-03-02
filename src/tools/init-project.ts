@@ -121,6 +121,7 @@ composition.json, and runs npm install.`,
             type: args.audioType,
           },
           scenes: [],
+          overlays: [],
         };
 
         await writeComposition(projectPath, composition);
@@ -128,10 +129,10 @@ composition.json, and runs npm install.`,
         // 6. Generate initial empty Root.tsx
         await regenerateRootTsx(projectPath, composition);
 
-        // 6b. Write src/index.ts — Remotion entry point (auto-discovered by Remotion v4)
+        // 6b. Write src/index.ts — Remotion entry point (must call registerRoot)
         await fs.writeFile(
           path.join(projectPath, 'src', 'index.ts'),
-          `// Remotion entry point — re-exports the root composition\n// Remotion auto-discovers this file and registers all <Composition> elements\nexport { RemotionRoot } from './Root';\n`
+          `import { registerRoot } from 'remotion';\nimport { RemotionRoot } from './Root';\n\nregisterRoot(RemotionRoot);\n`
         );
 
         // 7. Run npm install with a 2-minute timeout

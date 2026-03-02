@@ -14,12 +14,19 @@ import { registerUpdateComposition } from './tools/update-composition.js';
 
 // Phase 3 — Assets
 import { registerScanAssets } from './tools/scan-assets.js';
+import { registerImportAsset } from './tools/import-asset.js';
 
 // Phase 4 — Preview & Render
 import { registerStartPreview } from './tools/start-preview.js';
 import { registerStopPreview } from './tools/stop-preview.js';
 import { registerCaptureFrame } from './tools/capture-frame.js';
 import { registerRenderVideo } from './tools/render-video.js';
+
+// Phase 5 — Custom File Ops & Overlays
+import { registerWriteFile } from './tools/write-file.js';
+import { registerReadFile } from './tools/read-file.js';
+import { registerAddOverlay } from './tools/add-overlay.js';
+import { registerRemoveOverlay } from './tools/remove-overlay.js';
 
 export function setupServer(server: McpServer): void {
   // Phase 1
@@ -36,10 +43,17 @@ export function setupServer(server: McpServer): void {
 
   // Phase 3
   registerScanAssets(server);
+  registerImportAsset(server);
 
   // Phase 4
   registerStartPreview(server);
   registerStopPreview(server);
   registerCaptureFrame(server);
   registerRenderVideo(server);
+
+  // Phase 5
+  registerWriteFile(server);
+  registerReadFile(server);
+  registerAddOverlay(server);
+  registerRemoveOverlay(server);
 }
