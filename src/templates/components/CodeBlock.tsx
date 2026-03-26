@@ -59,7 +59,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = ({
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: '#0D1117',
+        backgroundColor,
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',

@@ -1,5 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, interpolate, spring, useVideoConfig } from 'remotion';
+import { computeEntrance, entranceTransform } from '../utils/animations';
+import type { EntrancePreset } from '../utils/animations';
 
 interface TextSceneProps {
   heading?: string;
@@ -12,6 +14,7 @@ interface TextSceneProps {
   bodyFontSize?: number;
   alignment?: 'center' | 'left' | 'right';
   animation?: 'fade' | 'typewriter' | 'word-by-word';
+  entrancePreset?: EntrancePreset;
 }
 
 export const TextScene: React.FC<TextSceneProps> = ({
@@ -25,14 +28,13 @@ export const TextScene: React.FC<TextSceneProps> = ({
   bodyFontSize = 32,
   alignment = 'left',
   animation = 'fade',
+  entrancePreset,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // Heading animation
-  const headingOpacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
-  const headingSpring = spring({ frame, fps, config: { damping: 12, stiffness: 100 } });
-  const headingY = interpolate(headingSpring, [0, 1], [30, 0]);
+  // Heading entrance — use preset or default fade-up
+  const headingAnim = computeEntrance(entrancePreset ?? 'fade-up', frame, fps);
 
   // Body/bullets animation — delayed by 15 frames
   const bodyStartFrame = 15;
@@ -65,8 +67,8 @@ export const TextScene: React.FC<TextSceneProps> = ({
             fontSize: headingFontSize,
             fontWeight: 'bold',
             color: headingColor ?? textColor,
-            opacity: headingOpacity,
-            transform: `translateY(${headingY}px)`,
+            opacity: headingAnim.opacity,
+            transform: entranceTransform(headingAnim),
             textAlign: alignment,
             marginBottom: 32,
           }}
@@ -80,12 +82,25 @@ export const TextScene: React.FC<TextSceneProps> = ({
           style={{
             fontSize: bodyFontSize,
             color: textColor,
-            opacity: animation === 'typewriter' ? 1 : bodyOpacity,
+            opacity: animation === 'typewriter' || animation === 'word-by-word' ? 1 : bodyOpacity,
             textAlign: alignment,
             lineHeight: 1.6,
           }}
         >
-          {animation === 'typewriter' ? getTypewriterText(body) : body}
+          {animation === 'typewriter' ? getTypewriterText(body) :
+           animation === 'word-by-word' ? (
+             body.split(/\s+/).map((word, i) => {
+               const wordDelay = bodyStartFrame + i * 4;
+               const wordOpacity = interpolate(frame, [wordDelay, wordDelay + 10], [0, 1], {
+                 extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+               });
+               return (
+                 <span key={i} style={{ opacity: wordOpacity, display: 'inline-block', marginRight: '0.3em' }}>
+                   {word}
+                 </span>
+               );
+             })
+           ) : body}
         </div>
       )}
 

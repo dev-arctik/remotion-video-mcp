@@ -5,7 +5,7 @@ import path from 'path';
 import { execa } from 'execa';
 import {
   ensureProjectDirs,
-  copyTemplates,
+  copyPrimitives,
   getServerRoot,
   regenerateRootTsx,
 } from '../utils/file-ops.js';
@@ -18,8 +18,9 @@ export function registerInitProject(server: McpServer): void {
     {
       title: 'Initialize Project',
       description: `Scaffold a new Remotion video project. ONLY call after start_session onboarding
-is complete. Creates directory tree, copies template components, writes
-composition.json, and runs npm install.`,
+is complete. Creates directory tree, copies composable primitives (AnimatedText, Background,
+LayoutStack, BeatSync, etc.), writes composition.json, and runs npm install.
+Scenes are created with componentCode that imports from 'src/primitives'.`,
       inputSchema: z.object({
         projectName: z.string().describe("Folder name in kebab-case, e.g. 'product-launch-video'"),
         workingDirectory: z.string().describe('Parent directory where project folder will be created'),
@@ -62,9 +63,9 @@ composition.json, and runs npm install.`,
         // 1. Create all directories
         await ensureProjectDirs(projectPath);
 
-        // 2. Copy template components from the MCP server package
+        // 2. Copy composable primitives into the user project
         const serverRoot = getServerRoot();
-        await copyTemplates(projectPath, serverRoot);
+        await copyPrimitives(projectPath, serverRoot);
 
         // 3. Write package.json from scaffold template
         const packageTemplate = await fs.readFile(

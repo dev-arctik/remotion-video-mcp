@@ -3,7 +3,8 @@ import { z } from 'zod';
 import fs from 'fs-extra';
 import path from 'path';
 import { glob } from 'glob';
-import { validateProjectPath } from '../utils/file-ops.js';
+import { parseFile } from 'music-metadata';
+import { validateProjectPath, toSafeFilename } from '../utils/file-ops.js';
 
 // Extension → asset category mapping (matches scan_assets patterns)
 const EXTENSION_CATEGORY: Record<string, string> = {
@@ -100,12 +101,22 @@ For binary assets only — use write_file for code files (.tsx, .ts, .css).`,
               throw new Error(`Source file not found: '${file.sourcePath}'`);
             }
 
-            // Determine filename — use custom or fall back to source filename
-            let filename = file.destFilename ?? path.basename(file.sourcePath);
+            // Determine filename — use custom or sanitize source filename
+            const rawSourceName = path.basename(file.sourcePath);
+            const sourceExt = path.extname(rawSourceName);
+            let filename: string;
 
-            // If destFilename has no extension, inherit from source
-            if (file.destFilename && !path.extname(file.destFilename)) {
-              filename = file.destFilename + path.extname(file.sourcePath);
+            if (file.destFilename) {
+              // Custom name provided — use as-is (trust the caller)
+              filename = file.destFilename;
+              // If destFilename has no extension, inherit from source
+              if (!path.extname(file.destFilename)) {
+                filename = file.destFilename + sourceExt;
+              }
+            } else {
+              // No custom name — sanitize to kebab-case to prevent broken staticFile() imports
+              const safeName = toSafeFilename(rawSourceName.replace(/\.[^.]+$/, ''));
+              filename = (safeName || 'imported-file') + sourceExt;
             }
 
             // Determine category
@@ -134,14 +145,33 @@ For binary assets only — use write_file for code files (.tsx, .ts, .css).`,
             await fs.copy(file.sourcePath, destPath, { overwrite: true });
 
             const stat = await fs.stat(destPath);
-            imported.push({
+            const entry: Record<string, unknown> = {
               sourcePath: file.sourcePath,
               filename,
               category,
               destPath,
               publicPath: `${category}/${filename}`,
               sizeKB: Math.round(stat.size / 1024),
-            });
+            };
+
+            // Parse audio duration if this is an audio file (not .json)
+            if (category === 'audio' && ext !== '.json') {
+              try {
+                const metadata = await parseFile(destPath);
+                if (metadata.format.duration) {
+                  const dur = metadata.format.duration;
+                  entry.durationSeconds = Math.round(dur * 10) / 10;
+                  // Human-readable format like "3:24"
+                  const mins = Math.floor(dur / 60);
+                  const secs = Math.floor(dur % 60);
+                  entry.durationFormatted = `${mins}:${secs.toString().padStart(2, '0')}`;
+                }
+              } catch {
+                // Non-critical — duration is optional metadata
+              }
+            }
+
+            imported.push(entry);
           } catch (fileErr) {
             const fileError = fileErr as Error;
             errors.push({
@@ -163,15 +193,45 @@ For binary assets only — use write_file for code files (.tsx, .ts, .css).`,
         else if (succeeded === 0) status = 'error';
         else status = 'partial';
 
+        // Check if any imported files are audio (non-JSON) — guide Claude to ask about audio type
+        const hasAudioImport = imported.some(
+          (entry) => entry.category === 'audio' && !String(entry.filename).endsWith('.json')
+        );
+
+        let nextSteps: string;
+        if (succeeded === 0) {
+          nextSteps = 'All imports failed. Check the errors array and verify source paths.';
+        } else if (hasAudioImport) {
+          nextSteps = [
+            'Audio files imported. IMPORTANT — before using this audio, ask the user:',
+            '"What type of audio is this?"',
+            '  (a) Narration or voiceover — spoken words synced to scenes',
+            '  (b) Background music or beats — instrumental track with no lyrics',
+            '  (c) Music with lyrics — songs where words are part of the content',
+            '',
+            'If the user says (b) background music/beats:',
+            '  Tell them: "I can analyze the beats in this track to sync animations with the rhythm —',
+            '  scene transitions, element entrances, and effects will land on beat drops for a professional feel.',
+            '  Want me to do that?"',
+            '  If yes → call analyze_beats with the imported audio filename.',
+            '',
+            'If the user says (a) narration:',
+            '  Ask for the timestamp JSON file (Whisper/AssemblyAI format) to sync scenes with speech.',
+            '',
+            'If the user says (c) music with lyrics:',
+            '  Both beat analysis and lyric timestamps may apply — ask what they want to emphasize.',
+          ].join('\n');
+        } else {
+          nextSteps = 'Files are ready. Use publicPath values directly in staticFile() calls or scene props.';
+        }
+
         const result = {
           status,
           imported,
           errors,
           summary: { total, succeeded, failed },
           assetTree,
-          next_steps: succeeded > 0
-            ? 'Files are ready. Use publicPath values directly in staticFile() calls or scene props.'
-            : 'All imports failed. Check the errors array and verify source paths.',
+          next_steps: nextSteps,
         };
 
         return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };

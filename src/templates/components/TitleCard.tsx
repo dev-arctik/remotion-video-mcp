@@ -1,5 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, interpolate, spring, useVideoConfig, Img, staticFile } from 'remotion';
+import { computeEntrance, entranceTransform } from '../utils/animations';
+import type { EntrancePreset } from '../utils/animations';
 
 interface TitleCardProps {
   title: string;
@@ -11,6 +13,7 @@ interface TitleCardProps {
   subtitleFontSize?: number;
   alignment?: 'center' | 'left' | 'right';
   logoSrc?: string; // path relative to public/, e.g. "images/logo.png"
+  entrancePreset?: EntrancePreset;
 }
 
 export const TitleCard: React.FC<TitleCardProps> = ({
@@ -23,19 +26,16 @@ export const TitleCard: React.FC<TitleCardProps> = ({
   subtitleFontSize = 32,
   alignment = 'center',
   logoSrc,
+  entrancePreset,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // Title: fade in + slide up from 20px below
-  const titleOpacity = interpolate(frame, [0, 25], [0, 1], { extrapolateRight: 'clamp' });
-  const titleY = spring({ frame, fps, config: { damping: 12, mass: 0.5, stiffness: 100 } });
-  const titleTranslateY = interpolate(titleY, [0, 1], [20, 0]);
+  // Title entrance — use preset or default fade-up
+  const titleAnim = computeEntrance(entrancePreset ?? 'fade-up', frame, fps);
 
-  // Subtitle: delayed fade in + slide up
-  const subtitleOpacity = interpolate(frame, [15, 40], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-  const subtitleSpring = spring({ frame: Math.max(0, frame - 15), fps, config: { damping: 12, mass: 0.5, stiffness: 100 } });
-  const subtitleTranslateY = interpolate(subtitleSpring, [0, 1], [20, 0]);
+  // Subtitle: delayed entrance using same preset
+  const subtitleAnim = computeEntrance(entrancePreset ?? 'fade-up', frame, fps, 15);
 
   // Logo: fade in at frame 0, fully visible by frame 20
   const logoOpacity = logoSrc
@@ -72,8 +72,8 @@ export const TitleCard: React.FC<TitleCardProps> = ({
           fontSize: titleFontSize,
           fontWeight: 'bold',
           color: titleColor,
-          opacity: titleOpacity,
-          transform: `translateY(${titleTranslateY}px)`,
+          opacity: titleAnim.opacity,
+          transform: entranceTransform(titleAnim),
           textAlign,
         }}
       >
@@ -84,8 +84,8 @@ export const TitleCard: React.FC<TitleCardProps> = ({
           style={{
             fontSize: subtitleFontSize,
             color: resolvedSubtitleColor,
-            opacity: subtitleOpacity,
-            transform: `translateY(${subtitleTranslateY}px)`,
+            opacity: subtitleAnim.opacity,
+            transform: entranceTransform(subtitleAnim),
             textAlign,
             marginTop: 16,
           }}

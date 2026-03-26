@@ -65,7 +65,8 @@ Call read_file first if you need to inspect existing content before editing.`,
         if (isProtected) {
           throw new Error(
             `Cannot write to protected file: '${args.filePath}'. ` +
-            `Protected files: ${PROTECTED_FILES.join(', ')}`
+            `Protected files: ${PROTECTED_FILES.join(', ')}. ` +
+            `If Root.tsx is broken, fix the data in composition.json via update_composition, then call regenerate_root.`
           );
         }
 

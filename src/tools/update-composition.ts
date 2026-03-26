@@ -32,8 +32,15 @@ Use this for changing the overall theme, swapping audio, or changing resolution.
         }).optional(),
         audio: z.object({
           type: z.enum(['narration', 'background', 'none']).optional(),
-          narration: z.record(z.string(), z.unknown()).optional(),
-          backgroundMusic: z.record(z.string(), z.unknown()).optional(),
+          narration: z.object({
+            src: z.string().describe('Audio file path relative to public/, e.g. "audio/voiceover.mp3"'),
+            volume: z.number().optional(),
+          }).optional(),
+          backgroundMusic: z.object({
+            src: z.string().describe('Audio file path relative to public/, e.g. "audio/bg-music.mp3"'),
+            volume: z.number().optional(),
+            loop: z.boolean().optional(),
+          }).optional(),
         }).optional(),
         metadata: z.object({
           title: z.string().optional(),

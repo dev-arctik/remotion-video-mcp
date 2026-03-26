@@ -12,9 +12,10 @@ import { registerDeleteScene } from './tools/delete-scene.js';
 import { registerReorderScenes } from './tools/reorder-scenes.js';
 import { registerUpdateComposition } from './tools/update-composition.js';
 
-// Phase 3 — Assets
+// Phase 3 — Assets & Audio Analysis
 import { registerScanAssets } from './tools/scan-assets.js';
 import { registerImportAsset } from './tools/import-asset.js';
+import { registerAnalyzeBeats } from './tools/analyze-beats.js';
 
 // Phase 4 — Preview & Render
 import { registerStartPreview } from './tools/start-preview.js';
@@ -27,6 +28,9 @@ import { registerWriteFile } from './tools/write-file.js';
 import { registerReadFile } from './tools/read-file.js';
 import { registerAddOverlay } from './tools/add-overlay.js';
 import { registerRemoveOverlay } from './tools/remove-overlay.js';
+
+// Phase 6 — Recovery & Discovery
+import { registerRegenerateRoot } from './tools/regenerate-root.js';
 
 export function setupServer(server: McpServer): void {
   // Phase 1
@@ -44,6 +48,7 @@ export function setupServer(server: McpServer): void {
   // Phase 3
   registerScanAssets(server);
   registerImportAsset(server);
+  registerAnalyzeBeats(server);
 
   // Phase 4
   registerStartPreview(server);
@@ -56,4 +61,7 @@ export function setupServer(server: McpServer): void {
   registerReadFile(server);
   registerAddOverlay(server);
   registerRemoveOverlay(server);
+
+  // Phase 6 — Recovery
+  registerRegenerateRoot(server);
 }

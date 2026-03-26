@@ -30,10 +30,15 @@ Claude acts as the creative brain. The MCP server acts as the bridge to a Remoti
 - **Frame capture** — render individual frames for quick review without full renders
 - **Final render** — produce MP4/WebM output at draft, standard, or high quality
 - **Template library** — TitleCard, TextScene, ImageScene, KineticTypography, CodeBlock, and more
+- **Template discovery** — `list_templates` returns all templates with props, layouts, and best-use-cases
+- **Animation presets** — `entrancePreset` prop for templates: fade-up, fly-from-left, zoom-in, drop-in, etc.
 - **Custom animations** — object-level animation system with spring physics and easing
-- **Asset import** — copy uploaded images, audio, and fonts from temp paths directly into the project
+- **Inline component code** — pass raw TSX directly to `create_scene`/`update_scene` for custom scenes
+- **Batch scene ops** — create or delete multiple scenes in a single tool call
+- **Asset import** — copy uploaded images, audio, and fonts from temp paths; returns audio duration automatically
 - **Custom components** — write arbitrary code files (themes, utils, components) beyond the template library
 - **Overlay system** — persistent global overlays (logos, watermarks, animations) that survive scene edits
+- **Root.tsx recovery** — `regenerate_root` rebuilds Root.tsx from composition.json when things go wrong
 
 ## MCP Tools
 
@@ -41,11 +46,12 @@ Claude acts as the creative brain. The MCP server acts as the bridge to a Remoti
 |------|-------------|
 | `start_session` | Onboarding questionnaire — always called first |
 | `init_project` | Scaffold a new Remotion project |
+| `list_templates` | Discover all 8 templates with props, layouts, presets, and best-use-cases |
 | `scan_assets` | Scan and analyze images, audio, and fonts in the assets folder |
-| `import_asset` | Copy uploaded files from temp paths into the project's assets directory |
-| `create_scene` | Create a new scene file with template or custom animations |
-| `update_scene` | Modify an existing scene's props, animations, or duration |
-| `delete_scene` | Remove a scene from the project |
+| `import_asset` | Copy uploaded files from temp paths into assets; returns audio duration |
+| `create_scene` | Create one or more scenes (batch support, componentCode for custom TSX) |
+| `update_scene` | Modify a scene's props, animations, duration, or replace code via componentCode |
+| `delete_scene` | Remove one or more scenes (batch support via sceneIds or deleteAll) |
 | `reorder_scenes` | Change the order of scenes in the composition |
 | `list_scenes` | List all scenes and overlays with their current state |
 | `update_composition` | Update global settings (style, audio, dimensions) |
@@ -53,7 +59,8 @@ Claude acts as the creative brain. The MCP server acts as the bridge to a Remoti
 | `read_file` | Read any file from the project for inspection |
 | `add_overlay` | Register a component as a persistent global overlay |
 | `remove_overlay` | Remove an overlay from the composition |
-| `start_preview` | Launch Remotion Studio dev server |
+| `regenerate_root` | Rebuild Root.tsx from composition.json (recovery tool) |
+| `start_preview` | Launch Remotion Studio dev server (safe to call as status check) |
 | `stop_preview` | Stop the dev server |
 | `capture_frame` | Render a single frame as PNG for review |
 | `render_video` | Render the final video (MP4/WebM) |

@@ -29,8 +29,8 @@ export interface Composition {
   };
   audio: {
     type: 'narration' | 'background' | 'none';
-    narration?: Record<string, unknown>;
-    backgroundMusic?: Record<string, unknown>;
+    narration?: { src: string; volume?: number };
+    backgroundMusic?: { src: string; volume?: number; loop?: boolean };
   };
   scenes: Scene[];
   overlays?: Overlay[];

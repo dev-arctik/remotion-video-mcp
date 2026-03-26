@@ -1,5 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, interpolate, spring, useVideoConfig, Img, staticFile } from 'remotion';
+import { computeEntrance, entranceTransform } from '../utils/animations';
+import type { EntrancePreset } from '../utils/animations';
 
 interface TextWithImageProps {
   heading?: string;
@@ -11,6 +13,7 @@ interface TextWithImageProps {
   headingColor?: string;
   headingFontSize?: number;
   bodyFontSize?: number;
+  entrancePreset?: EntrancePreset;
 }
 
 export const TextWithImage: React.FC<TextWithImageProps> = ({
@@ -23,23 +26,32 @@ export const TextWithImage: React.FC<TextWithImageProps> = ({
   headingColor,
   headingFontSize = 48,
   bodyFontSize = 28,
+  entrancePreset,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // Text slides in from the left, image from the right (or vice versa)
+  // Text entrance — use preset or default spring from side
+  const textAnim = entrancePreset
+    ? computeEntrance(entrancePreset, frame, fps)
+    : null;
+
+  // Fallback: spring from side (original behavior)
   const textDirection = imagePosition === 'right' ? -1 : 1;
   const imageDirection = imagePosition === 'right' ? 1 : -1;
 
-  // Text entrance — spring from side
   const textSpring = spring({ frame, fps, config: { damping: 12, stiffness: 100 } });
-  const textX = interpolate(textSpring, [0, 1], [80 * textDirection, 0]);
-  const textOpacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
+  const defaultTextX = interpolate(textSpring, [0, 1], [80 * textDirection, 0]);
+  const defaultTextOpacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
 
-  // Image entrance — delayed spring from opposite side
+  // Image entrance — delayed, uses same preset or spring from opposite side
+  const imageAnim = entrancePreset
+    ? computeEntrance(entrancePreset, frame, fps, 10)
+    : null;
+
   const imageSpring = spring({ frame: Math.max(0, frame - 10), fps, config: { damping: 12, stiffness: 100 } });
-  const imageX = interpolate(imageSpring, [0, 1], [80 * imageDirection, 0]);
-  const imageOpacity = interpolate(frame, [10, 30], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const defaultImageX = interpolate(imageSpring, [0, 1], [80 * imageDirection, 0]);
+  const defaultImageOpacity = interpolate(frame, [10, 30], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
   const textContent = (
     <div
@@ -49,8 +61,8 @@ export const TextWithImage: React.FC<TextWithImageProps> = ({
         flexDirection: 'column',
         justifyContent: 'center',
         padding: '60px',
-        opacity: textOpacity,
-        transform: `translateX(${textX}px)`,
+        opacity: textAnim ? textAnim.opacity : defaultTextOpacity,
+        transform: textAnim ? entranceTransform(textAnim) : `translateX(${defaultTextX}px)`,
       }}
     >
       {heading && (
@@ -87,8 +99,8 @@ export const TextWithImage: React.FC<TextWithImageProps> = ({
         alignItems: 'center',
         justifyContent: 'center',
         padding: '40px',
-        opacity: imageOpacity,
-        transform: `translateX(${imageX}px)`,
+        opacity: imageAnim ? imageAnim.opacity : defaultImageOpacity,
+        transform: imageAnim ? entranceTransform(imageAnim) : `translateX(${defaultImageX}px)`,
       }}
     >
       <Img
