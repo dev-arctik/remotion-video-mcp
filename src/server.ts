@@ -15,6 +15,7 @@ import { registerUpdateComposition } from './tools/update-composition.js';
 // Phase 3 — Assets & Audio Analysis
 import { registerScanAssets } from './tools/scan-assets.js';
 import { registerImportAsset } from './tools/import-asset.js';
+import { registerAnalyzeAudio } from './tools/analyze-audio.js';
 import { registerAnalyzeBeats } from './tools/analyze-beats.js';
 
 // Phase 4 — Preview & Render
@@ -48,7 +49,8 @@ export function setupServer(server: McpServer): void {
   // Phase 3
   registerScanAssets(server);
   registerImportAsset(server);
-  registerAnalyzeBeats(server);
+  registerAnalyzeAudio(server);  // primary — frequency-based event detection
+  registerAnalyzeBeats(server);  // backward compat — still works, same BPM output
 
   // Phase 4
   registerStartPreview(server);

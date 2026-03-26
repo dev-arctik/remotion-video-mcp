@@ -24,6 +24,11 @@ export type { LayoutSplitProps } from './LayoutSplit';
 export { Stagger } from './Stagger';
 export type { StaggerProps } from './Stagger';
 
+// Audio-reactive primitive — real-time frequency data from audio playback
+export { AudioReactive, useAudioReactive } from './AudioReactive';
+export type { AudioReactiveProps, AudioReactiveContextValue } from './AudioReactive';
+
+/** @deprecated Use AudioReactive and useAudioReactive instead */
 export { BeatSync, useBeat } from './BeatSync';
 export type { BeatSyncProps, BeatData } from './BeatSync';
 

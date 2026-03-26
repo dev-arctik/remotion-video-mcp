@@ -114,7 +114,8 @@ function computeExit(
   duration: number,
 ): { opacity: number; translateX: number; translateY: number; scale: number; blur: number } {
   // framesUntilEnd counts down — 0 means element is gone
-  const progress = interpolate(framesUntilEnd, [duration, 0], [0, 1], {
+  // inputRange must be strictly increasing for Remotion's interpolate()
+  const progress = interpolate(framesUntilEnd, [0, duration], [1, 0], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
