@@ -1,7 +1,7 @@
 # Issue: No Overlay or Custom Component Support in MCP Tools
 
 **Date Reported:** 2026-02-26
-**Status:** Identified
+**Status:** Resolved
 **Type:** Bug Report
 **Severity:** High
 **Affected Area:** Backend
@@ -95,3 +95,26 @@ Add `overlays: []` to the initial `Composition` object so new projects have a va
 
 - Files: `src/state/project-state.ts`, `src/utils/file-ops.ts`, `src/server.ts`, `src/tools/init-project.ts`, `src/tools/update-scene.ts`, `src/tools/create-scene.ts`, `src/tools/delete-scene.ts`, `src/tools/reorder-scenes.ts`, `src/tools/update-composition.ts`
 - Detailed implementation plan: `/Users/devanshraj/.claude/plans/swirling-snuggling-hennessy.md`
+
+---
+
+## Resolution
+
+**Resolved in:** Phase 5 (commit: custom file ops + overlay system)
+**Resolved on:** 2026-03-02
+
+All three root-cause gaps were addressed:
+
+**1. write_file and read_file tools** (`src/tools/write-file.ts`, `src/tools/read-file.ts`):
+Claude can now write arbitrary `.tsx`, `.ts`, `.css`, or `.json` files into the project. Protected files (`composition.json`, `src/Root.tsx`, `src/SceneRenderer.tsx`, `package.json`, `tsconfig.json`, `remotion.config.ts`, `src/index.ts`) cannot be overwritten — an explicit error is returned. `read_file` has no extension restriction and a traversal guard.
+
+**2. overlays[] field on Composition** (`src/state/project-state.ts:57`):
+The `Overlay` interface was added (`src/state/project-state.ts:79–88`) and `overlays?: Overlay[]` was added to the `Composition` interface. The `?` makes it backward-compatible — existing projects without the field are treated as `[]`. `init_project` now writes `overlays: []` in the initial composition object.
+
+**3. regenerateRootTsx() overlay-awareness** (`src/utils/file-ops.ts:134`):
+The function now reads `composition.overlays`, sorts them by `zIndex` ascending, generates static imports, and emits `<AbsoluteFill>` render blocks after the scene series and audio. Partial-duration overlays (`startFrame`/`endFrame` set) are wrapped in `<Sequence>`. `AbsoluteFill` and `Sequence` are conditionally added to the `remotion` import only when needed. Because all 6 regeneration call sites (create_scene, update_scene, delete_scene, reorder_scenes, update_composition, add_overlay) pass through this function, overlays persist through all scene mutations.
+
+**4. add_overlay and remove_overlay tools** (`src/tools/add-overlay.ts`, `src/tools/remove-overlay.ts`):
+`add_overlay` verifies the component file exists on disk before modifying `composition.json`, checks for `overlayId` and `componentName` collisions, then writes composition and calls `regenerateRootTsx`. `remove_overlay` splices the entry and optionally deletes the file from disk (`deleteFile: true`).
+
+For the full flow, see `docs/feature_flow/custom-file-ops-and-overlays-flow.md`.

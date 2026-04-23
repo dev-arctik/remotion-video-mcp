@@ -1,7 +1,7 @@
 # Issue: Beat Analysis → Scene Animation Integration Gap
 
 **Date Reported:** 2026-03-02
-**Status:** Identified
+**Status:** Resolved
 **Type:** Bug Report
 **Severity:** Critical
 **Affected Area:** Backend + Templates
@@ -130,3 +130,24 @@ Templates that already accept `entrancePreset` should also accept:
 
 - Files: `src/tools/analyze-beats.ts`, `src/utils/beat-analysis.ts`, `src/templates/utils/animations.ts`, `src/templates/components/TitleCard.tsx`, `src/templates/components/TextScene.tsx`, `src/templates/components/ImageScene.tsx`, `src/templates/components/TextWithImage.tsx`, `src/templates/components/KineticTypography.tsx`, `src/utils/file-ops.ts`
 - Related issues: `docs/issues/2026-03-02-animation-presets-and-template-docs.md` — covers missing documentation for existing preset system
+
+---
+
+## Resolution
+
+**Resolved in:** Phase 8 (beat analysis v2 + BeatSync rewrite)
+**Resolved on:** 2026-04-23
+
+The three root-cause gaps identified in this issue were addressed by taking a fundamentally different approach in Phase 8 rather than patching the original v1 system:
+
+**1. No utility scaffolding** — The original proposed fix was to write a `src/utils/beats.ts` module into the user project with helper functions. Phase 8 superseded this with the `BeatSync` primitive and `useBeat` hook, which are already present in every user project (copied at `init_project` via `copyPrimitives()`). Claude doesn't need to scaffold anything — the tools are already there.
+
+**2. No beat-aware animation primitives** — `useBeat({ tier, every, tolerance, decayFrames })` at `src/primitives/BeatSync.tsx:321` provides a tier-aware API that replaces the proposed `enterOnBeat()` function. The hook returns `pulse` (0..1 decay value), `isOnBeat`, `isDownbeat`, `barIndex`, `framesSinceLast`, and `framesUntilNext` — sufficient to drive any beat-synchronized animation without manual frame math. Claude writes `componentCode` using these hooks directly.
+
+**3. No beat-responsive template component** — The proposed `BeatPulse.tsx` template was not shipped. Instead, the composable primitives approach makes templates obsolete: Claude writes `componentCode` using `BeatSync` + `useBeat` + other primitives (`AnimatedText`, `Background`, `Glow`, etc.) rather than selecting pre-built templates. This is strictly more flexible.
+
+**BeatDataV2 schema** (`src/utils/beat-analysis.ts:42–87`): The v1 flat `beats[]` array was replaced with a rich schema including `isDownbeat`, `beatNumber`, `barNumber`, `confidence`, `bassEnergy` per beat, plus `downbeatFrames[]` and phrase ranges (`bar`, `fourBar`, `eightBar`, `sixteenBar`).
+
+**Quality verdicts** (`src/tools/analyze-beats.ts:121–130`): The tool now surfaces a `high/medium/low` quality verdict based on avgConfidence and beatGapStdDev, so Claude can warn the user when beat detection is unreliable.
+
+For the full current system, see `docs/feature_flow/beat-detection-flow.md` and `docs/research/audio-driven-video-transitions.md`.

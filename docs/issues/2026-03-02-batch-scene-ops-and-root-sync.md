@@ -192,3 +192,11 @@ Two contributing factors:
 
 - Files: `src/tools/update-scene.ts`, `src/tools/write-file.ts`, `src/tools/add-overlay.ts`, `src/tools/update-composition.ts`, `src/tools/regenerate-root.ts`, `src/utils/file-ops.ts`, `src/state/project-state.ts`
 - Related issues: `docs/issues/2026-03-02-protected-file-catch-22.md`, `docs/issues/2026-03-02-scene-management-efficiency.md`
+
+---
+
+## Status Note (2026-04-23)
+
+**Issue 1 (batch `update_scene`):** Still open. `update_scene` at `src/tools/update-scene.ts` still accepts a single `sceneId: z.string()` — no batch variant has been added. The workaround for multi-scene code changes is multiple sequential `write_file` calls (each writing a full scene file) or registering a global overlay via `add_overlay` for effects that apply to all scenes uniformly.
+
+**Issue 2 (Root.tsx sync):** Substantially addressed. The `regenerate_root` recovery tool (`src/tools/regenerate-root.ts`) has been available since Phase 6 and always re-reads `composition.json` from disk before regenerating — providing a reliable escape hatch. The `update_composition` `next_steps` guidance should still be updated to mention `regenerate_root` as a recovery option (this specific text change was not made). The root cause of the "stale durations" symptom was clarified: `update_composition` cannot change per-scene `durationFrames` — those must go through `update_scene`. The `regenerateRootTsx()` function signature was NOT changed to always re-read from disk; it still takes a `composition` parameter from the caller.

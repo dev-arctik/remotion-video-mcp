@@ -4,7 +4,14 @@
 **Status:** Approved
 **Type:** Feature Spec
 **Created:** 2026-02-25
-**Last Modified:** 2026-02-25
+**Last Modified:** 2026-04-23
+
+> **STATUS NOTE (2026-04-23):** This document describes the v1.0 product spec — the original 13-tool MCP server covering sessions, project scaffolding, scenes, audio, preview, and render. The project has since shipped Phases 5–8, expanding to 30 tools. For current implementation details see:
+> - `docs/feature_flow/usage-guide.md` — end-to-end usage flow
+> - `docs/feature_flow/custom-file-ops-and-overlays-flow.md` — Phase 5 tools
+> - `docs/feature_flow/beat-detection-flow.md` — Phase 8 beat analysis
+> - `docs/feature_flow/audio-event-detection-and-reactivity-flow.md` — Phase 8 audio reactivity
+> - `CLAUDE.md` — current tool list, primitives, design token system, and phase history
 
 ---
 

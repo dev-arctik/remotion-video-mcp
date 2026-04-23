@@ -1,7 +1,7 @@
 # Issue: Template Visual Quality & Design System
 
 **Date Reported:** 2026-03-02
-**Status:** Identified
+**Status:** Superseded
 **Type:** Bug Report
 **Severity:** High
 **Affected Area:** Templates
@@ -263,3 +263,29 @@ All templates should import `resolveStyle` from `colors.ts` and accept an option
   - Motion design: 50–100ms stagger, exit at 60–75% of entrance duration, min 0.5s text hold time
   - Spring configs: subtle (stiffness 40–80), energetic (200–300), cinematic (60–100, mass 1.5–2.0)
   - Glassmorphism: `rgba(255,255,255,0.10–0.25)`, blur 8–15px, 1px white-18% border
+
+---
+
+## Resolution
+
+**Status:** Superseded — Phase 7 (Open Composition)
+**Resolved on:** 2026-04-23
+
+This issue is superseded rather than directly fixed. Phase 7 made the entire template visual-quality concern moot by changing the fundamental architecture:
+
+**Templates demoted to "inspiration only":** Templates (`src/templates/components/`) were never actually copied into user projects — they were dead code. The `list_templates` tool description was updated to reflect this. Templates still exist in the server repo as reference implementations, but they are not the primary creation path.
+
+**Design token system shipped** (`src/primitives/tokens/`): A Material Design 3-derived token system was implemented with five modules:
+- `motion.ts` — M3 easings, durations, Apple SwiftUI spring presets
+- `color.ts` — color roles with on-X pairing (primary/onPrimary, etc.)
+- `type.ts` — type scale (displayLarge → labelSmall)
+- `spacing.ts` — spacing and radius scales
+- `theme.ts` — `buildTheme()` + five named palettes (`editorial-dark`, `editorial-light`, `cinematic-noir`, `electric-blue`, `forest-warm`)
+
+**ThemeProvider wraps every composition** (`src/utils/file-ops.ts:257–265`): `regenerateRootTsx()` now wraps the entire composition in `<ThemeProvider overrides={themeOverrides}>`, so all primitives can call `useTheme()` to read design tokens without prop drilling.
+
+**10 composable primitives shipped** (`src/primitives/`): `AnimatedTextChars`, `AnimatedTextWords`, `Captions`, `MotionBlur`, `MorphPath`, `FilmGrain`, `LottiePlayer`, `KenBurns`, `Gradient`, `Glow` — all read from `useTheme()`. Claude composes these in `componentCode` instead of selecting templates.
+
+The proposed `SceneHeader`, `SceneLayout`, exit animations, typography utility, and motion presets from this issue's "Proposed Fix" section were superseded by the token system and composable primitives. The concerns raised (weak typography, ignored color system, no motion presets) are addressed structurally by the token layer rather than by patching individual template files.
+
+For the current design system, see `CLAUDE.md` (Phase 7 section) and `src/primitives/tokens/`.
