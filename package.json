@@ -4,6 +4,16 @@
   "description": "MCP server bridging Claude and Remotion for programmatic video creation",
   "main": "dist/index.js",
   "type": "module",
+  "license": "MIT",
+  "author": "Devansh Raj",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dev-arctik/remotion-video-mcp.git"
+  },
+  "homepage": "https://github.com/dev-arctik/remotion-video-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/dev-arctik/remotion-video-mcp/issues"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
