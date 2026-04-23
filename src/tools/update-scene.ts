@@ -5,6 +5,7 @@ import path from 'path';
 import { readComposition, writeComposition, recalculateStartFrames } from '../state/project-state.js';
 import type { Scene } from '../state/project-state.js';
 import { validateProjectPath, writeSceneFile, regenerateRootTsx, toSafeFilename } from '../utils/file-ops.js';
+import { lintComponentCode } from '../utils/component-lint.js';
 
 export function registerUpdateScene(server: McpServer): void {
   server.registerTool(
@@ -21,7 +22,13 @@ REMOTION RULES:
   - Animations: useCurrentFrame() + interpolate()/spring() ONLY — CSS animations are FORBIDDEN
   - Audio: import { Audio } from '@remotion/media'
   - Spring: { damping: 200 } smooth | { damping: 20, stiffness: 200 } snappy | { damping: 8 } bouncy
-  - Always clamp: { extrapolateRight: 'clamp', extrapolateLeft: 'clamp' }`,
+  - Always clamp: { extrapolateRight: 'clamp', extrapolateLeft: 'clamp' }
+
+MOTION REST STATE RULE:
+  Text/UI elements enter via animation.entrance and HOLD STILL until exit. Continuous
+  oscillators (Math.sin(frame), useBeat({tier:'beat'}).pulse on text, useAudioReactive()
+  driving text transform) are FORBIDDEN — they produce throbbing. componentCode is
+  linted for these patterns and warnings are returned in the response.`,
       inputSchema: z.object({
         projectPath: z.string(),
         sceneId: z.string().describe('ID of the scene to update'),
@@ -80,6 +87,9 @@ REMOTION RULES:
 
         await regenerateRootTsx(args.projectPath, composition);
 
+        // Lint the new componentCode for forbidden continuous-motion patterns
+        const lintWarnings = args.componentCode ? lintComponentCode(args.componentCode) : [];
+
         return {
           content: [{
             type: 'text' as const,
@@ -94,7 +104,10 @@ REMOTION RULES:
                 startFrame: s.startFrame,
                 durationFrames: s.durationFrames,
               })),
-              next_steps: 'Check the preview — it should update automatically.',
+              ...(lintWarnings.length > 0 ? { lintWarnings } : {}),
+              next_steps: lintWarnings.length > 0
+                ? 'Scene updated. ⚠ Lint flagged anti-patterns above (likely continuous motion on text). Review and update_scene again to fix.'
+                : 'Check the preview — it should update automatically.',
             }, null, 2),
           }],
         };

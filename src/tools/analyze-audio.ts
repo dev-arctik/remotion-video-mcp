@@ -192,8 +192,13 @@ For real-time audio reactivity in scenes, use the AudioReactive primitive in com
           `  • For programmatic filtering (e.g. all bass-drops with intensity > 0.8),`,
           `    write a small node script rather than reading the whole file.`,
           ``,
-          `For real-time audio reactivity in scenes, wrap elements in <AudioReactive>:`,
-          `  import { AudioReactive, useAudioReactive } from '../src/primitives';`,
+          `MOTION REST STATE — read carefully:`,
+          `  The right way to use this data is for SCENE CUTS and ENTRANCE TIMING,`,
+          `  not for continuous motion on text. Cut to a new scene on each bass-drop frame;`,
+          `  give the title an entrance that lands on the cut. The title then HOLDS STILL.`,
+          `  ❌ DO NOT scale/translate text continuously by bassIntensity or pulse — produces throbbing.`,
+          `  ✅ For DECORATIVE audio reactivity only (spectrum bars, particles, glow shapes),`,
+          `     wrap them in <AudioReactive> from '../src/primitives'. Never wrap text or layout.`,
         ].join('\n');
 
         // Build compact response — NO events[] or beats[] spread

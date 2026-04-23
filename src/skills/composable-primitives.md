@@ -9,6 +9,35 @@ metadata:
 
 Scenes are built by composing primitives — small, reusable components that handle animation, layout, and visual effects. Import from `'../src/primitives'`.
 
+---
+
+## ⛔ MOTION REST STATE — read first
+
+**Text and UI elements enter and HOLD STILL until exit.**
+
+This is the single most important rule for AI-authored Remotion scenes. Continuous oscillation on content elements is the #1 cause of unwatchable output.
+
+| ❌ Forbidden on text / titles / captions / chips / badges / layout containers | ✅ Required pattern |
+|---|---|
+| `Math.sin(frame / N * 2π)` riding on `scale()` or `translate()` | `<AnimatedText animation={{ entrance: 'fade-up' }}>` then nothing else |
+| `useBeat({ tier: 'beat' }).pulse` applied to `transform` on text | One-shot spring entrance via `animation.entrance`, then static |
+| `useAudioReactive()` driving title `transform` or `opacity` continuously | Element appears once, holds, then exits via `animation.exit` |
+| Any continuous oscillator running the entire scene length on a content element | Cut the scene on a beat instead — that gives the sync feeling |
+
+**Why:** at 120 BPM, beat-by-beat motion = 2 hits per second. The eye reads this as throbbing, not rhythm. Multiple elements oscillating in-phase make the entire scene "breathe" continuously, which is unwatchable. The sync feeling comes from **scene cuts landing on bass-drops** and **entrance timing landing on beats**, not from elements moving during them.
+
+**Decorative-only exceptions** — these CAN use continuous reactivity because they ARE the visualization:
+- Spectrum bars / waveforms (`<AnimatedShape>` with audio-driven `height`)
+- Particle systems (small `<AnimatedShape>` with audio-driven count/size/glow)
+- Background gradients (audio-driven color shift)
+- Decorative rings or geometric accents (one-shot `pulse` on `tier: 'downbeat'` or `tier: 'phrase-4'` with `decayFrames`)
+
+If you find yourself reaching for `useBeat({ tier: 'beat' })` on a content element, stop and ask: "Could a scene cut at this frame give the same feeling?" Almost always: yes.
+
+See the full rules + good/bad examples in the `audio-events-and-reactivity` skill doc.
+
+---
+
 ## Available Primitives
 
 ### Content Primitives

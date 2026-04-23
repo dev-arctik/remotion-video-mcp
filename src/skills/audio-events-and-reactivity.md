@@ -8,24 +8,46 @@ metadata:
 # Audio-Driven Video Creation
 
 This skill covers two systems that work together for music-driven videos:
-1. **analyze_audio** (MCP tool) — detects dramatic moments in audio for scene planning
-2. **AudioReactive** (Remotion primitive) — real-time frequency reactivity during playback
+1. **analyze_audio / analyze_beats** (MCP tools) — detect dramatic moments + beats for scene PLANNING
+2. **AudioReactive / BeatSync** (Remotion primitives) — real-time reactivity, **decorative elements only**
 
-## Part 1: Using analyze_audio Output
+---
 
-Call `analyze_audio` with an audio file to get named events and scene cut suggestions.
+## ⛔ THE ONE RULE (READ THIS FIRST)
+
+**Never apply continuous audio-driven motion to text, titles, captions, or layout containers.**
+
+The audio-sync feeling comes from **scene cuts landing on bass-drops** and **element entrances landing on beats**. Not from elements moving DURING those beats.
+
+| ❌ Forbidden on text/UI | ✅ Allowed on text/UI |
+|---|---|
+| `scale = 1 + bassIntensity * 0.3` continuously | One-shot spring entrance, then HOLD STILL |
+| `Math.sin(frame * BPM_FACTOR)` on `scale()` | `<AnimatedText animation={{ entrance: 'fade-up' }}>` |
+| `useBeat({ tier: 'beat' }).pulse` on text scale | Cut to a new scene on the bass-drop frame |
+| `opacity = overallEnergy` on text | Entrance `delay` set to a beat frame |
+| `useAudioReactive()` driving title transform | Exit on `silence-break` event |
+
+**Why:** at 120 BPM beat-by-beat = 2 hits/sec. At 160 BPM = 2.7 hits/sec. The eye reads this as constant throbbing, not rhythm. After 2-3 beats it stops feeling like sync and starts feeling like jitter. After 30 seconds of it, the viewer wants to close the tab.
+
+`AudioReactive` and `useBeat`'s `pulse` value exist for **spectrum bars, particle systems, decorative shapes, and background gradients** — never for content elements.
+
+---
+
+## Part 1: Scene PLANNING with analyze_audio (the high-leverage path)
+
+This is where ~90% of the music-sync feeling comes from. Get the cuts right and the video already feels locked to the music.
 
 ### Event Types
 
-| Event | What It Detects | Visual Suggestion |
-|-------|----------------|-------------------|
-| `bass-drop` | Sudden low-frequency spike (kick, sub-bass) | Scene cut, zoom-in, scale pulse, camera shake |
-| `impact` | All frequencies spike simultaneously (orchestral hit, explosion) | Hard cut, flash white, title reveal |
-| `transient` | High-frequency spike with fast decay (swoosh, cymbal, clap) | Fly-in text, quick wipe transition, element entrance |
-| `build-start` | Energy gradually rising over 1+ seconds | Start animating elements in, increase particle count |
-| `build-peak` | Energy peaks after a build | Climax reveal, full-screen element, burst animation |
-| `silence-break` | Audio returns after a silent pause | Dramatic scene change, reveal after blackout |
-| `energy-shift` | Large sudden change in overall energy | Transition between video sections, mood change |
+| Event | What It Detects | What to do at this frame |
+|-------|----------------|--------------------------|
+| `bass-drop` | Sudden low-frequency spike (kick, sub-bass) | **CUT to a new scene.** Optionally: hard zoom on the entering element via spring. |
+| `impact` | All frequencies spike (orchestral hit) | **CUT** + flash a 1-frame white overlay. |
+| `transient` | High-freq spike (swoosh, cymbal, clap) | **Element entrance** lands on this frame (`delay = transient.frame - sceneStart`). |
+| `build-start` | Energy gradually rising | **Stagger element entrances** across the build window. |
+| `build-peak` | Energy peaks after a build | **Climax reveal** — full-screen element appears. |
+| `silence-break` | Audio returns after a silent pause | Scene starts black, content reveals on this frame. |
+| `energy-shift` | Major change in overall energy | Section boundary — new visual style or palette. |
 
 ### Planning Scenes from Events
 
@@ -41,190 +63,247 @@ analyze_audio returns:
   ]
 
 → Scene 1: frames 0–89 (3s) — intro, gentle entrance animations
-→ Scene 2: frames 90–200 (3.7s) — high energy, bold visuals (triggered by bass drop)
+→ Scene 2: frames 90–200 (3.7s) — high energy, bold visuals (started by bass drop CUT)
 → Scene 3: frames 201–449 (8.3s) — new section after dramatic pause
 → Scene 4: frames 450+ — final section after energy shift
 ```
 
-### Matching Events to Animations
+The CUT to scene 2 on frame 90 IS the "bass drop hit." No additional motion required on the title that appears in scene 2 — its mere appearance synced to the drop is the sync.
 
-When an event frame falls within a scene, use it to time element entrances:
+### Matching Events to Entrance Timing
+
+When an event frame falls inside a scene, use it to time entrances:
 
 ```tsx
-// Bass drop at frame 90 → zoom-in entrance
+// Scene starts at frame 90 (bass drop). Title enters via spring on frame 0 of scene → coincides with the cut.
+// No continuous motion afterward — it just appears and sits there.
 <AnimatedText
-  fontSize={96}
-  fontWeight="bold"
+  fontSize={120}
+  fontWeight={700}
   animation={{ entrance: 'zoom-in', damping: 8, stiffness: 200 }}
 >
   IMPACT
 </AnimatedText>
 
-// Transient (swoosh) → fly-from-right
+// Transient (swoosh) lands at frame 320 (= scene-relative frame 50 if scene starts at 270)
+// Image enters on the swoosh, then holds.
 <AnimatedImage
   src={staticFile('images/product.png')}
-  animation={{ entrance: 'fly-from-right', delay: 5 }}
+  animation={{ entrance: 'fly-from-right', delay: 50 }}
 />
 
-// Build peak → staggered reveal
+// Build peak → staggered reveal of feature list. Each item enters once and stays.
 <Stagger delayFrames={4}>
   <AnimatedText animation={{ entrance: 'fade-up' }}>Feature 1</AnimatedText>
   <AnimatedText animation={{ entrance: 'fade-up' }}>Feature 2</AnimatedText>
   <AnimatedText animation={{ entrance: 'fade-up' }}>Feature 3</AnimatedText>
 </Stagger>
-
-// Silence break → dramatic reveal from black
-<Background color="#000000">
-  <AnimatedText
-    fontSize={120}
-    animation={{ entrance: 'blur-in', entranceDuration: 40 }}
-  >
-    THE REVEAL
-  </AnimatedText>
-</Background>
 ```
 
-### Using Beat Data for Scene Durations
+Notice: every `<AnimatedText>` above has `animation.entrance` set and **nothing else**. No `style={{transform: scale(${pulse})}}`. No `useAudioReactive()`. The text enters and holds.
 
-analyze_audio also returns BPM and beat-aligned durations:
+### Beat-Aligned Scene Durations
+
+`analyze_beats` returns `suggestedSceneDurations` for evenly-paced cuts:
 
 ```
 suggestedSceneDurations:
-  4-beat: { frames: 45, seconds: 1.5 }   — quick cuts
-  8-beat: { frames: 90, seconds: 3.0 }   — standard scenes
-  16-beat: { frames: 180, seconds: 6.0 }  — longer content scenes
+  4-beat:  { frames: 45,  seconds: 1.5 }   — quick cuts
+  8-beat:  { frames: 90,  seconds: 3.0 }   — standard scenes
+  16-beat: { frames: 180, seconds: 6.0 }   — longer content scenes
 ```
 
-Use these when you want evenly-paced scenes that feel rhythmically natural.
+Use these as `durationFrames` on `create_scene` — your cuts now land on phrase boundaries.
 
-## Part 2: AudioReactive Primitive (Real-Time)
+---
 
-For elements that respond to audio energy DURING playback, use `AudioReactive`:
+## Part 2: useBeat — for ONE-SHOT accent pulses on DECORATIVE elements
+
+`useBeat()` from `BeatSync` returns a `pulse` value that decays after each beat. This is the right primitive for adding *occasional* accents to decorative elements (rings, particles, frame borders) — never to text.
+
+### The decayFrames safety rail
+
+```tsx
+import { BeatSync, useBeat } from '../src/primitives';
+
+<BeatSync data={beatData}>
+  <DecorativeRing />
+</BeatSync>
+
+const DecorativeRing = () => {
+  // tier: 'downbeat' = once per bar (4 beats). At 120 BPM that's once every 2 seconds.
+  // tier: 'phrase-4' = once every 4 bars (16 beats). At 120 BPM that's once every 8 seconds.
+  // NEVER use tier: 'beat' (every quarter note) — produces throbbing at most BPMs.
+  const { pulse } = useBeat({ tier: 'downbeat', decayFrames: 6 });
+
+  // Apply to a DECORATIVE shape — never to text or layout
+  return (
+    <AnimatedShape
+      shape="circle"
+      width={400}
+      height={400}
+      fill="transparent"
+      stroke="rgba(99,102,241,0.4)"
+      strokeWidth={2 + pulse * 4}   // ring pulses subtly on each downbeat
+      style={{ transform: `scale(${1 + pulse * 0.05})` }}
+    />
+  );
+};
+```
+
+| Tier | Frequency at 120 BPM | Use for |
+|---|---|---|
+| `'beat'` | every 0.5s | ❌ NEVER — throbbing |
+| `'downbeat'` | every 2s | Subtle decorative ring/badge accent |
+| `'phrase-1'` | every 2s (= downbeat) | Same as downbeat |
+| `'phrase-4'` | every 8s | Section-marker accent on a decorative element |
+| `'phrase-8'` | every 16s | Major moment markers |
+| `'phrase-16'` | every 32s | Top-level structural beats only |
+
+**Default: if you're considering `useBeat` on a content element, you're probably wrong. Use a scene cut instead.**
+
+---
+
+## Part 3: AudioReactive — for VISUALIZERS only
+
+`AudioReactive` gives elements live frequency data (`bassIntensity`, `midIntensity`, `highIntensity`). This is for music visualization: spectrum bars, oscilloscopes, particle systems, audio-reactive geometric shapes. **Never wrap a `<Background>`, title, or content layout.**
+
+### ✅ Good: spectrum bars
 
 ```tsx
 import { AudioReactive, useAudioReactive } from '../src/primitives';
 import { staticFile } from 'remotion';
 
-// Wrap a scene in AudioReactive to give children access to frequency data
-export const MyScene: React.FC = () => (
+export const VisualizerScene: React.FC = () => (
   <AudioReactive src={staticFile('audio/music.mp3')}>
-    <PulsingTitle />
-    <SpectrumBars />
+    <SpectrumBars />            {/* decorative — fine */}
+    <AnimatedText               {/* sibling, NOT inside the reactive transform */}
+      fontSize={80}
+      animation={{ entrance: 'fade-up' }}
+    >
+      LIVE
+    </AnimatedText>
   </AudioReactive>
 );
+
+const SpectrumBars = () => {
+  const { bassIntensity, midIntensity, highIntensity } = useAudioReactive();
+  const bands = [
+    { energy: bassIntensity, color: '#ef4444' },
+    { energy: midIntensity,  color: '#eab308' },
+    { energy: highIntensity, color: '#3b82f6' },
+  ];
+  return (
+    <LayoutStack direction="row" gap={12} align="flex-end" justify="center">
+      {bands.map((b, i) => (
+        <AnimatedShape
+          key={i}
+          shape="rect"
+          width={60}
+          height={b.energy * 300}     // height varies — this is the visualization
+          fill={b.color}
+          borderRadius={8}
+        />
+      ))}
+    </LayoutStack>
+  );
+};
 ```
 
-### useAudioReactive Hook
-
-Children call `useAudioReactive()` to get real-time values:
+### ✅ Good: bass-reactive particle field
 
 ```tsx
-const {
-  bassIntensity,   // 0–1, low frequencies (kick drums, bass)
-  midIntensity,    // 0–1, mid frequencies (vocals, melody)
-  highIntensity,   // 0–1, high frequencies (hi-hats, cymbals)
-  overallEnergy,   // 0–1, average of all frequencies
-  isDropping,      // true when bass spikes significantly
-  isSilent,        // true when overall energy is near zero
-  isLoaded,        // false while audio data loads
-} = useAudioReactive();
+const ParticleField = () => {
+  const { bassIntensity } = useAudioReactive();
+  // Decorative particles get bigger on bass — fine, they're not content
+  return (
+    <AnimatedShape
+      shape="circle"
+      width={50 + bassIntensity * 100}
+      height={50 + bassIntensity * 100}
+      fill="rgba(99,102,241,0.3)"
+      glow={`0 0 ${bassIntensity * 80}px rgba(99,102,241,0.6)`}
+    />
+  );
+};
 ```
 
-### Common Reactive Patterns
+### ❌ Bad: bass-reactive title
 
-**Bass pulse — scale on kick drums:**
 ```tsx
-const { bassIntensity } = useAudioReactive();
-const scale = 1 + bassIntensity * 0.3;
-
-<div style={{ transform: `scale(${scale})` }}>
-  <AnimatedText fontSize={72}>BOOM</AnimatedText>
-</div>
+// DO NOT DO THIS — text bouncing on bass = irritating throbbing
+const PulsingTitle = () => {
+  const { bassIntensity } = useAudioReactive();
+  return (
+    <div style={{ transform: `scale(${1 + bassIntensity * 0.3})` }}>
+      <AnimatedText fontSize={72}>BOOM</AnimatedText>   {/* ← TEXT under continuous transform */}
+    </div>
+  );
+};
 ```
 
-**High-frequency glow — shimmer on cymbals/swooshes:**
-```tsx
-const { highIntensity } = useAudioReactive();
-const glow = highIntensity > 0.3
-  ? `0 0 ${highIntensity * 60}px rgba(99, 102, 241, ${highIntensity})`
-  : 'none';
+### ❌ Bad: energy-driven opacity on text
 
-<AnimatedShape
-  shape="circle"
-  width={200}
-  height={200}
-  fill="#6366f1"
-  glow={glow}
-/>
+```tsx
+// DO NOT DO THIS — text fading in and out continuously is unreadable
+const FadingTitle = () => {
+  const { overallEnergy } = useAudioReactive();
+  const opacity = 0.3 + overallEnergy * 0.7;
+  return <AnimatedText style={{ opacity }}>Reads as broken</AnimatedText>;
+};
 ```
 
-**Energy-driven opacity — fade with the music:**
-```tsx
-const { overallEnergy } = useAudioReactive();
-const opacity = 0.3 + overallEnergy * 0.7;
+If you want text to feel synced to the music: cut to it on a beat. That's it.
 
-<AnimatedText style={{ opacity }}>
-  Fades with the music
-</AnimatedText>
+### Event flags — better than continuous values
+
+`AudioReactive` exposes event-style booleans that fire only on actual peaks:
+
+```tsx
+const { isBassHit, isHighHit, isPeak, isSilent, bassIntensity } = useAudioReactive();
 ```
 
-**Silence detection — show/hide on pauses:**
-```tsx
-const { isSilent } = useAudioReactive();
+These are gated — `isBassHit` only fires when bass is BOTH loud AND dominant over mids/highs (configurable via `bassHitThreshold` and `bassDominanceRatio` props on `AudioReactive`). They're suitable for one-shot effects on decorative elements:
 
-{!isSilent && (
-  <AnimatedText animation={{ entrance: 'fade-up' }}>
-    Only visible when audio is playing
-  </AnimatedText>
+```tsx
+// One-shot ring expansion on actual bass hits — decorative element, gated event
+{isBassHit && (
+  <AnimatedShape
+    shape="circle"
+    width={400}
+    height={400}
+    fill="transparent"
+    stroke="rgba(255,255,255,0.6)"
+    strokeWidth={4}
+    animation={{ entrance: 'zoom-out', entranceDuration: 12 }}
+  />
 )}
 ```
 
-**Spectrum bars — frequency visualization:**
-```tsx
-const { bassIntensity, midIntensity, highIntensity } = useAudioReactive();
-const bands = [
-  { energy: bassIntensity, color: '#ef4444', label: 'Bass' },
-  { energy: midIntensity, color: '#eab308', label: 'Mids' },
-  { energy: highIntensity, color: '#3b82f6', label: 'Highs' },
-];
+Even with `isBassHit`, **never apply this to a text element**. Use it to spawn/scale decorative shapes only.
 
-<LayoutStack direction="row" gap={12} align="flex-end" justify="center">
-  {bands.map(b => (
-    <AnimatedShape
-      key={b.label}
-      shape="rect"
-      width={60}
-      height={b.energy * 300}
-      fill={b.color}
-      borderRadius={8}
-    />
-  ))}
-</LayoutStack>
-```
+---
 
-## Part 1 + Part 2 Together
+## Part 4: Putting it Together
 
-The best music-driven videos use BOTH:
-
-1. **analyze_audio** decides WHERE to cut scenes and WHAT events to highlight
-2. **AudioReactive** makes elements REACT to the music in real-time
+The right division of labor for a music-driven video:
 
 ```
-analyze_audio → "bass drop at frame 90"
-  → create_scene: new scene starting at frame 90
-  → componentCode uses AudioReactive for live bass pulse
-
-analyze_audio → "transient at frame 300"
-  → AnimatedText with entrance: 'fly-from-right', delay matched to frame 300
-
-analyze_audio → "silence at frames 180-200"
-  → scene with black background, then dramatic reveal at frame 201
-  → AudioReactive detects isSilent → fades elements out during pause
+analyze_audio       → scene cuts land on bass-drops + suggested durations
+analyze_beats       → fine-grained beat data for entrance timing
+create_scene        → durationFrames + entrance.delay snap to beat frames
+componentCode       → titles enter once via spring(), then HOLD STILL
+                       decorative shapes optionally use useBeat({tier: 'downbeat'})
+                       visualizer shapes use AudioReactive
 ```
+
+The viewer's brain interprets the cut + the title appearing as one event. That IS the bass drop hit, visually. Adding additional motion to the title at that moment is gilding — and continuing motion *after* that moment is irritation.
+
+---
 
 ## Important Notes
 
 - `AudioReactive` uses `@remotion/media-utils` internally — works in both Studio preview and render
-- ALL animations inside `AudioReactive` must still use `useCurrentFrame()` / `interpolate()` / `spring()` — CSS animations are FORBIDDEN in Remotion
+- All animations inside `AudioReactive` must still use `useCurrentFrame()` / `interpolate()` / `spring()` — CSS animations break renders
 - `useAudioReactive()` returns zero values until audio loads (`isLoaded: false`) — components won't crash, they just render with no reactivity initially
 - For best results, use WAV or high-quality MP3 — low-bitrate audio produces less accurate frequency data

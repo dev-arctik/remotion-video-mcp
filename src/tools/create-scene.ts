@@ -5,6 +5,7 @@ import path from 'path';
 import { readComposition, writeComposition, recalculateStartFrames } from '../state/project-state.js';
 import type { Scene } from '../state/project-state.js';
 import { validateProjectPath, writeSceneFile, regenerateRootTsx, sceneIdToComponentName, toSafeFilename } from '../utils/file-ops.js';
+import { lintComponentCode } from '../utils/component-lint.js';
 
 // Schema for a single scene entry — reused for both single and batch
 const sceneEntrySchema = z.object({
@@ -52,6 +53,23 @@ REMOTION RULES (critical for correct rendering):
   - Transitions: import { fade, slide, wipe } from '@remotion/transitions/<name>'
   - Always clamp interpolations: { extrapolateRight: 'clamp', extrapolateLeft: 'clamp' }
 
+MOTION REST STATE RULE (read this before adding any continuous animation):
+  Text, titles, captions, badges, layout containers MUST enter via animation.entrance
+  and HOLD STILL until exit. Continuous oscillators on content elements produce
+  throbbing — the #1 cause of unwatchable AI-authored video.
+
+  ❌ FORBIDDEN on text/UI:
+     - Math.sin(frame * X) on scale/translate
+     - useBeat({ tier: 'beat' }).pulse on text scale
+     - useAudioReactive() values driving text transform/opacity
+  ✅ REQUIRED:
+     - Use animation.entrance for one-shot intro motion, then nothing
+     - For beat sync: cut scenes on beat frames; let text appear once and hold
+     - useBeat is for DECORATIVE shapes only (rings, particles) at tier:'downbeat' or higher
+     - AudioReactive is for VISUALIZERS only (spectrum bars, particle systems)
+
+  See skill docs: composable-primitives, audio-events-and-reactivity
+
 COMPONENT STRUCTURE:
   import React from 'react';
   import { useCurrentFrame, useVideoConfig, staticFile } from 'remotion';
@@ -88,6 +106,8 @@ For narration-driven videos, set durationFrames from audio segment timing:
         }
 
         const createdFiles: string[] = [];
+        // Collect lint warnings across all scenes — surfaced in the tool response so Claude sees them
+        const lintWarnings: Array<{ sceneId: string; warnings: ReturnType<typeof lintComponentCode> }> = [];
 
         for (const sceneInput of args.scenes) {
           // Sanitize filename — keep display name as-is in composition.json
@@ -107,6 +127,10 @@ For narration-driven videos, set durationFrames from audio segment timing:
 
           composition.scenes.push(newScene);
           createdFiles.push(newScene.file);
+
+          // Lint componentCode for known anti-patterns (continuous text motion, beat throb, etc.)
+          const warnings = lintComponentCode(sceneInput.componentCode);
+          if (warnings.length > 0) lintWarnings.push({ sceneId: sceneInput.sceneId, warnings });
         }
 
         // Recalculate ALL startFrames once
@@ -140,7 +164,12 @@ For narration-driven videos, set durationFrames from audio segment timing:
                 startFrame: s.startFrame,
                 durationFrames: s.durationFrames,
               })),
-              next_steps: 'Check the preview if running, or call start_preview to see the scenes.',
+              // Soft lint warnings — scene was still created. Claude should READ these and
+              // self-correct via update_scene if a forbidden pattern is flagged.
+              ...(lintWarnings.length > 0 ? { lintWarnings } : {}),
+              next_steps: lintWarnings.length > 0
+                ? 'Scenes created. ⚠ Lint flagged anti-patterns above (likely continuous motion on text). Review and use update_scene to fix before previewing.'
+                : 'Check the preview if running, or call start_preview to see the scenes.',
             }, null, 2),
           }],
         };

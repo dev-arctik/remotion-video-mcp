@@ -136,9 +136,9 @@ return (
 );
 ```
 
-## Bass-Reactive Effects
+## Bass-Reactive Effects (DECORATIVE elements only)
 
-Extract low frequencies for beat-reactive animations:
+Extract low frequencies for audio-reactive **decorative shapes** — particle blobs, glow rings, background pulses. **Never apply these scale/opacity values to text, titles, captions, or layout containers** — continuous reactivity on content elements reads as throbbing. See the Motion Rest State rule in `composable-primitives.md`.
 
 ```tsx
 const frequencies = visualizeAudio({
@@ -154,9 +154,25 @@ const lowFrequencies = frequencies.slice(0, 32);
 const bassIntensity =
   lowFrequencies.reduce((sum, v) => sum + v, 0) / lowFrequencies.length;
 
+// ✅ OK on a decorative shape — this IS the visualization
 const scale = 1 + bassIntensity * 0.5;
 const opacity = Math.min(0.6, bassIntensity * 0.8);
+
+return (
+  <div
+    style={{
+      width: 200,
+      height: 200,
+      borderRadius: '50%',
+      background: 'rgba(99,102,241,0.5)',
+      transform: `scale(${scale})`,
+      opacity,
+    }}
+  />
+);
 ```
+
+For text that should "feel" the music: cut to a new scene on the bass-drop frame instead. The cut + entrance combination IS the sync.
 
 ## Volume-Based Waveform
 
