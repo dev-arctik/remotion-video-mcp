@@ -64,9 +64,23 @@ export type { StaggerProps } from './Stagger';
 export { AudioReactive, useAudioReactive } from './AudioReactive';
 export type { AudioReactiveProps, AudioReactiveContextValue } from './AudioReactive';
 
-/** @deprecated Use AudioReactive and useAudioReactive instead */
-export { BeatSync, useBeat } from './BeatSync';
-export type { BeatSyncProps, BeatData } from './BeatSync';
+// Beat-driven reactivity — pairs with analyze_beats v2 sidecar JSON.
+// Wrap a scene in <BeatSync data={beatData}>, then call useBeat() / useBeatGrid()
+// in any descendant for tier-aware pulse + isOnBeat + isDownbeat etc.
+//   const { pulse, isOnBeat, isDownbeat } = useBeat({ tier: 'downbeat', tolerance: 2 });
+//   const { pulse: subPulse } = useBeat({ tier: 'beat', decayFrames: 4 });
+export { BeatSync, useBeat, useBeatGrid } from './BeatSync';
+export type {
+  BeatSyncProps,
+  BeatData,
+  BeatDataV1,
+  BeatDataV2,
+  BeatV2,
+  PhraseRange,
+  BeatTier,
+  UseBeatOptions,
+  UseBeatResult,
+} from './BeatSync';
 
 // Animation engine (for advanced use — custom animations beyond presets)
 export { useAnimation } from './useAnimation';

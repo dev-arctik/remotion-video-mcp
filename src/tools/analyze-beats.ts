@@ -113,24 +113,72 @@ The import_asset tool's response will guide you on when to suggest this.`,
         const beatsPath = path.join(args.projectPath, 'assets', 'audio', beatsFilename);
         await fs.writeJson(beatsPath, beatData, { spaces: 2 });
 
+        const downbeatCount = beatData.downbeatFrames.length;
+        const fourBarCount = beatData.phrases.fourBar.length;
+        const eightBarCount = beatData.phrases.eightBar.length;
+
+        // Quality verdict — guides Claude on whether to trust the analysis
+        const conf = beatData.stats.avgConfidence;
+        const drift = beatData.stats.beatGapStdDev;
+        const downbeatStrong = beatData.stats.downbeatStrength >= 1.15;
+        const tempoStable = drift < 0.03;
+        const verdict =
+          conf >= 0.8 && tempoStable
+            ? 'high'
+            : conf >= 0.6 && (tempoStable || drift < 0.06)
+            ? 'medium'
+            : 'low';
+
         const result = {
           status: 'success',
+          schemaVersion: beatData.schemaVersion,
           audioFile: args.audioFile,
           beatsJsonPath: `assets/audio/${beatsFilename}`,
           bpm: beatData.bpm,
           beatCount: beatData.beatCount,
           beatIntervalMs: beatData.beatIntervalMs,
+          durationSeconds: beatData.durationSeconds,
           fps,
-          beats: beatData.beats,
+          // Tier counts — surfaces immediately what's available without re-reading the JSON
+          tiers: {
+            beats: beatData.beatCount,
+            downbeats: downbeatCount,
+            bars: beatData.phrases.bar.length,
+            fourBarPhrases: fourBarCount,
+            eightBarPhrases: eightBarCount,
+            sixteenBarPhrases: beatData.phrases.sixteenBar.length,
+          },
+          // Quality stats — Claude should warn the user if low
+          quality: {
+            verdict,
+            avgConfidence: beatData.stats.avgConfidence,
+            tempoStability: tempoStable ? 'stable' : drift < 0.06 ? 'moderate-drift' : 'unstable',
+            beatGapStdDev: beatData.stats.beatGapStdDev,
+            downbeatDetection: downbeatStrong ? 'strong' : 'weak',
+            downbeatStrength: beatData.stats.downbeatStrength,
+          },
           suggestedSceneDurations: beatData.suggestedSceneDurations,
+          // Truncated preview — full data is in the sidecar JSON
+          beatsPreview: beatData.beats.slice(0, 8),
           next_steps: [
             `Beat data saved to assets/audio/${beatsFilename}.`,
-            `Use suggestedSceneDurations to set scene durationFrames that align with beats:`,
-            `  - 4-beat phrases (${beatData.suggestedSceneDurations['4-beat'].frames} frames / ${beatData.suggestedSceneDurations['4-beat'].seconds}s) — quick cuts, fast transitions`,
-            `  - 8-beat phrases (${beatData.suggestedSceneDurations['8-beat'].frames} frames / ${beatData.suggestedSceneDurations['8-beat'].seconds}s) — standard scene length`,
-            `  - 16-beat phrases (${beatData.suggestedSceneDurations['16-beat'].frames} frames / ${beatData.suggestedSceneDurations['16-beat'].seconds}s) — longer scenes with more content`,
-            `For a ${beatData.bpm} BPM track, 8-beat scenes feel natural for most content.`,
-            `Use beats[N].frame values if you need an entrance to land exactly on a specific beat.`,
+            ``,
+            `WHAT YOU CAN DO NOW (tier-aware):`,
+            `  • ${downbeatCount} downbeats detected — anchor MAJOR scene changes here (use beatData.downbeatFrames or useBeat({ tier: 'downbeat' }))`,
+            `  • ${fourBarCount} 4-bar phrases (${beatData.suggestedSceneDurations['4-beat'].frames}f each at this fps × 4) — typical for high-energy content`,
+            `  • ${eightBarCount} 8-bar phrases — standard verse / chorus length, default for most content`,
+            ``,
+            `IN COMPONENTCODE — wrap with BeatSync, then call useBeat:`,
+            `  const beatData = JSON.parse(staticFile('audio/${beatsFilename}'))`,
+            `  <BeatSync data={beatData}>...</BeatSync>`,
+            `  const { pulse, isOnBeat, isDownbeat } = useBeat({ tier: 'downbeat', tolerance: 1 });`,
+            ``,
+            `QUALITY: ${verdict.toUpperCase()} (avg confidence ${conf.toFixed(2)}, tempo ${tempoStable ? 'stable' : 'drifting'}, downbeat ${downbeatStrong ? 'strong' : 'weak'})`,
+            verdict === 'low'
+              ? `  ⚠ Low confidence — track may have rubato, jazz, or weak transients. Consider manual scene-duration overrides instead of relying on phrase boundaries.`
+              : downbeatStrong
+              ? `  ✓ Downbeats are reliable — safe to anchor major moments to them.`
+              : `  ⚠ Downbeats are heuristic (every 4th beat from phase ${beatData.stats.downbeatPhase}). For acoustic / classical, verify by previewing a few seconds.`,
           ].join('\n'),
         };
 
