@@ -141,6 +141,14 @@ const PRIMITIVES_CATALOG = [
     importFrom: '../src/primitives',
     example: `<LayoutSplit direction="horizontal" ratio={0.4}>{leftPanel}{rightPanel}</LayoutSplit>`,
   },
+  {
+    category: 'layout',
+    name: 'SafeArea',
+    description: 'Content container that RESERVES chrome zones (top header band, bottom footer band, side margins). Prevents content from colliding with persistent SectionHeader / Footer / crosshairs — the #1 cause of layout-overflow bugs in 1080p video. Default safe zone: 1728×750 centered. Pass `debug` to render translucent guides while iterating in Studio.',
+    keyProps: ['chrome?: { topReserved (180), bottomReserved (150), sideMargin (96) }', 'debug?: boolean (overlay guides)', 'overflow: hidden|visible (default hidden — clipped overflow makes violations obvious)', 'align: start|center|end|stretch', 'justify: start|center|end|space-between|space-around', 'direction: row|column'],
+    importFrom: '../src/primitives',
+    example: `<AbsoluteFill>\n  <SectionHeader />          {/* in top chrome band */}\n  <SafeArea align="center" justify="center" debug={false}>\n    <YourContent />          {/* clipped to safe zone */}\n  </SafeArea>\n  <Footer />                 {/* in bottom chrome band */}\n</AbsoluteFill>`,
+  },
 
   // ─── ANIMATION + AUDIO ─────────────────────────────────────────────
   {

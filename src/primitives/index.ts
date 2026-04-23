@@ -56,6 +56,12 @@ export type { LayoutStackProps } from './LayoutStack';
 export { LayoutSplit } from './LayoutSplit';
 export type { LayoutSplitProps } from './LayoutSplit';
 
+// SafeArea — content container that reserves chrome zones (top header, bottom footer,
+// side margins) to prevent content from overflowing into persistent UI bands.
+// Use as the wrapper for scene content; render SectionHeader/Footer outside it.
+export { SafeArea, useSafeAreaDimensions } from './SafeArea';
+export type { SafeAreaProps, SafeAreaChrome } from './SafeArea';
+
 // Animation primitives
 export { Stagger } from './Stagger';
 export type { StaggerProps } from './Stagger';

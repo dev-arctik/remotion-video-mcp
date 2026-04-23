@@ -38,6 +38,173 @@ See the full rules + good/bad examples in the `audio-events-and-reactivity` skil
 
 ---
 
+## ⛔ LAYOUT BUDGET — fit content inside the safe zone
+
+A scene canvas is **1920 × 1080** but the content area is smaller. Persistent chrome (SectionHeader, Footer, corner crosshairs) reserves bands at the top and bottom. Content placed top-down without a vertical budget collides with chrome — the #1 cause of unrenderable scenes.
+
+### The 1080p chrome zones (defaults)
+
+```
+y =    0 ─────────────────────────────────────────────  (top edge)
+       │  TOP CHROME BAND (180px)                      │
+       │  • 96px corner crosshair margin               │
+       │  • 84px reserved for SectionHeader            │
+y =  180 ─────────────────────────────────────────────  ┐
+       │                                               │
+       │  SAFE CONTENT ZONE (1728 × 750)               │  ← content lives HERE
+       │  • horizontal: 96px margin each side          │
+       │  • vertical:   180–930                        │
+       │  • max stack height: 750px                    │
+       │                                               │
+y =  930 ─────────────────────────────────────────────  ┘
+       │  BOTTOM CHROME BAND (150px)                   │
+       │  • 96px corner crosshair margin               │
+       │  • 54px reserved for Footer                   │
+y = 1080 ─────────────────────────────────────────────  (bottom edge)
+```
+
+If your scene uses different chrome sizes, override via the `chrome` prop on `<SafeArea>` — but pick a budget BEFORE writing content, not after watching it overflow.
+
+### The required pattern
+
+Use `<SafeArea>` as the wrapper for scene CONTENT. Render chrome (SectionHeader, Footer) as siblings OUTSIDE the SafeArea:
+
+```tsx
+import { AbsoluteFill } from 'remotion';
+import { SafeArea, AnimatedText, LayoutStack } from '../src/primitives';
+
+export const Scene: React.FC = () => (
+  <AbsoluteFill style={{ background: '#0F1115' }}>
+    <SectionHeader>SCENE 7 · TRANSITIONS</SectionHeader>      {/* in top chrome */}
+    <SafeArea align="center" justify="center">
+      <LayoutStack direction="vertical" gap={32} align="center">
+        <AnimatedText animation={{ entrance: 'fade-up' }}>HEADING</AnimatedText>
+        <YourContent />
+      </LayoutStack>
+    </SafeArea>
+    <Footer>007 · 00:01:23</Footer>                            {/* in bottom chrome */}
+  </AbsoluteFill>
+);
+```
+
+`SafeArea` defaults to `overflow: hidden` — if content overflows the safe zone, it gets clipped immediately. **The clipping is intentional** — it makes the violation visually obvious during preview rather than letting it sneak past until render. Pass `debug={true}` to render translucent guides while iterating.
+
+### Budget heuristics for content
+
+When sizing content inside the 750px safe zone:
+
+| Content type | Reasonable height budget |
+|---|---|
+| Single-line big display (`fontSize: 140`) | ~180px (font + descender) |
+| Two-line headline (`fontSize: 80`) | ~200px |
+| Body paragraph (3 lines @ `fontSize: 32`) | ~150px |
+| Bullet list (5 items, default spacing) | ~280px |
+| 3-column data row | ~120px per row |
+| 2×3 grid card cell | ~180px per cell (×2 rows = 360px) |
+| Image with overlay text | 400–500px |
+
+Add stack gaps (`gap: 24` × N rows) and **always sum the heights before writing the JSX**. If your sum exceeds 750px, you have three options:
+
+1. Drop a row or item
+2. Shrink font sizes (display → headline scale tier)
+3. Move chrome out of the way (custom `chrome` prop on `<SafeArea>`)
+
+Never just "see what happens" — stack-overflow on text is unrecoverable in Remotion (no scrollbars at render time, content just sits clipped).
+
+### Common mistakes that overflow
+
+- ❌ Stacking content from `top: 0` instead of using SafeArea — places content in the SectionHeader band
+- ❌ Using `bottom: 96` for footer placement WITHOUT counting the footer's own height (54px) — overlap
+- ❌ Forgetting that `lineHeight: 0.9` doesn't shrink the bounding box — descenders still extend ~15% past nominal `fontSize`
+- ❌ Tables/grids sized by `cellHeight × rowCount` without subtracting borders + gaps
+- ❌ Absolute-positioning a watermark or rubber stamp on top of readable code/text — even if visually intentional, the underlying text is now unreadable
+
+### When NOT to use SafeArea
+
+- Full-bleed background images (`<KenBurns>` filling the full canvas)
+- Decorative overlays that ARE the chrome (a film grain or vignette covering everything)
+- Transition wipes / scene morphs that span the whole canvas
+
+For these, position elements directly inside `<AbsoluteFill>`. The rule is: **content** goes in SafeArea, **decorative full-canvas effects** go outside.
+
+---
+
+## ⛔ NO DECORATIVE COLOR WITHOUT SEMANTICS
+
+When you apply an accent color (red highlight, gold border, glow, contrasting fill) to *some* items in a set of similar items, the rule that selects those items must be **expressible in one sentence that a viewer could guess from the scene alone**.
+
+Arbitrary patterns like `i % 5 === 2` or "every 3rd row" or "first and last" are decorative noise — they tell the viewer "these N items are different" without telling them WHY. The viewer's brain spends cycles trying to infer meaning that doesn't exist, then disengages.
+
+### The one-sentence test
+
+Say the highlighting rule out loud. If it sounds like:
+
+| ✅ Passes (semantic — ship it) | ❌ Fails (arbitrary — remove or remap) |
+|---|---|
+| "These are the audio-related primitives." | "Every 5th tile starting from index 2." |
+| "This is the first one — start here." (single focal) | "I wanted some visual rhythm." |
+| "These are the new additions in v2." | "Two random tiles to break uniformity." |
+| "This is the currently-active step." | "Every other one is highlighted." |
+| "Deprecated items render dimmed." | "Indices 3 and 8 because it looked balanced." |
+
+### Patterns that pass
+
+```tsx
+// ✅ Categorical — viewer can infer the category from item context
+const isHighlighted = item.category === 'audio-related';
+
+// ✅ Single hero / focal point — brutalist-friendly, reads as "start here"
+const isHero = i === 0;
+
+// ✅ State-driven — accent moves with a real signal (active step, current beat, hovered)
+const isActive = currentStep === item.id;
+
+// ✅ Status-derived — color encodes a property the viewer can verify
+const tone = item.deprecated ? 'dim' : 'normal';
+```
+
+### Patterns that fail
+
+```tsx
+// ❌ Arbitrary modulo — no reason 2 of 12 should differ
+const highlight = i % 5 === 2;
+
+// ❌ Hardcoded indices with no explanation in the scene
+const accent = (i === 3 || i === 7) ? 'red' : 'white';
+
+// ❌ "Every other" applied to a uniform set
+const stripe = i % 2 === 0 ? '#FFF' : '#EEE';   // (zebra is fine for tables; not for a tile grid of equal items)
+
+// ❌ Random for "rhythm" — animated chaos with no beat anchor
+const randomAccent = (frame + i) % 7 === 0;
+```
+
+### When in doubt: uniform > decorative
+
+A boring honest grid beats a noisy decorative one. If you can't articulate the rule in one sentence, **make all items the same**. Visual interest comes from the GRID itself (typography, spacing, layout) — not from arbitrary accent colors.
+
+If you genuinely need a focal point in an otherwise uniform set, pick **one** item and have a reason ("start here", "primary action", "today"). Two arbitrarily-accented items reads as broken; one accented item reads as intentional.
+
+### Special case — animated accent
+
+A moving accent (one tile lit at a time, changing on each beat or scene boundary) is fine **if the change is anchored to a real signal**:
+
+```tsx
+// ✅ Anchor the accent to a beat tier or scene timeline
+const { isOnBeat, beatIndex } = useBeat({ tier: 'downbeat', tolerance: 1 });
+const accentIndex = beatIndex % items.length;
+return items.map((item, i) => (
+  <Tile key={i} highlighted={i === accentIndex} />
+));
+
+// ❌ Random/frame-driven accent with no anchor — noise
+const accentIndex = Math.floor(frame / 30) % items.length;
+```
+
+The audio-rest-state rule applies here too: anchor color movement to discrete events (beats, cuts, state changes), never to continuous frame-driven oscillation.
+
+---
+
 ## Available Primitives
 
 ### Content Primitives
