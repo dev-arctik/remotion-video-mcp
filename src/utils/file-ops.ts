@@ -138,6 +138,9 @@ export async function regenerateRootTsx(
   const { settings, scenes, audio } = composition;
   const overlays = (composition.overlays ?? []).sort((a, b) => a.zIndex - b.zIndex);
 
+  // Detect transitions — if any scene has transitionOut, use TransitionSeries
+  const transitionsUsed = scenes.some((s) => s.transitionOut && s.transitionOut.presentation !== 'none');
+
   // Guard against zero-duration — Remotion rejects durationInFrames: 0
   const totalFrames =
     settings.totalDurationFrames ??
@@ -150,12 +153,15 @@ export async function regenerateRootTsx(
     })
     .join('\n');
 
-  const seriesEntries = scenes
-    .map((s) => {
-      const name = sceneIdToComponentName(s.id);
-      return `      <Series.Sequence durationInFrames={${s.durationFrames}}>\n        <${name} />\n      </Series.Sequence>`;
-    })
-    .join('\n');
+  // Build the series body — either Series.Sequence or TransitionSeries.Sequence/Transition pairs
+  const seriesEntries = transitionsUsed
+    ? buildTransitionSeriesBody(scenes)
+    : scenes
+        .map((s) => {
+          const name = sceneIdToComponentName(s.id);
+          return `      <Series.Sequence durationInFrames={${s.durationFrames}}>\n        <${name} />\n      </Series.Sequence>`;
+        })
+        .join('\n');
 
   // Audio JSX — Audio and staticFile are both exported from 'remotion'
   const hasNarration = audio.type === 'narration' && audio.narration?.src;
@@ -199,9 +205,10 @@ export async function regenerateRootTsx(
     })
     .join('\n');
 
-  // Build imports — Audio comes from @remotion/media, everything else from remotion
+  // Build imports — base set
   const hasPartialOverlays = overlays.some((o) => o.startFrame != null || o.endFrame != null);
-  const remotionImportParts = ['Composition', 'Series'];
+  const remotionImportParts = ['Composition'];
+  if (!transitionsUsed) remotionImportParts.push('Series');
   if (hasAudio) remotionImportParts.push('staticFile');
   if (overlays.length > 0) remotionImportParts.push('AbsoluteFill');
   if (hasPartialOverlays) remotionImportParts.push('Sequence');
@@ -210,12 +217,28 @@ export async function regenerateRootTsx(
   // Audio import from @remotion/media (not remotion)
   const audioImport = hasAudio ? `\nimport { Audio } from '@remotion/media';` : '';
 
+  // Transition imports — only if we actually use transitions
+  const transitionImports = transitionsUsed
+    ? `\nimport { TransitionSeries, linearTiming, springTiming } from '@remotion/transitions';\n${buildTransitionPresentationImports(scenes)}`
+    : '';
+
+  // Theme — load from composition.theme block, fallback to legacy style.
+  // ThemeProvider wraps the entire composition so all primitives can read tokens.
+  const themeOverrides = buildThemeOverridesJson(composition);
+
+  // Series wrapper — TransitionSeries or Series
+  const seriesWrapper = transitionsUsed ? 'TransitionSeries' : 'Series';
+
   const rootContent = `import React from 'react';
-import { ${remotionImports} } from 'remotion';${audioImport}
+import { ${remotionImports} } from 'remotion';${audioImport}${transitionImports}
+import { ThemeProvider } from '../src/primitives/tokens';
 ${sceneImports}
 ${overlayImports}
 
-// Auto-generated from composition.json — do not edit directly
+// Auto-generated from composition.json — do not edit directly.
+// Theme tokens are injected via ThemeProvider so all primitives read from a single source.
+const themeOverrides = ${themeOverrides};
+
 export const RemotionRoot: React.FC = () => {
   return (
     <>
@@ -233,17 +256,106 @@ export const RemotionRoot: React.FC = () => {
 
 const MainComposition: React.FC = () => {
   return (
-    <>
-      <Series>
+    <ThemeProvider overrides={themeOverrides}>
+      <${seriesWrapper}>
 ${seriesEntries}
-      </Series>${audioJsx}
+      </${seriesWrapper}>${audioJsx}
 ${overlayRenderBlocks}
-    </>
+    </ThemeProvider>
   );
 };
 `;
 
   await fs.writeFile(path.join(projectPath, 'src', 'Root.tsx'), rootContent);
+}
+
+// ─── TRANSITION HELPERS ──────────────────────────────────────────────────
+// Map transition.presentation → @remotion/transitions presentation name + import
+
+const TRANSITION_PRESENTATION_MAP: Record<string, string> = {
+  'fade': 'fade',
+  'slide': 'slide',
+  'wipe': 'wipe',
+  'flip': 'flip',
+  'iris': 'iris',
+  'clock-wipe': 'clockWipe',
+};
+
+// Each presentation lives at its own subpath: '@remotion/transitions/fade', '/slide', etc.
+const TRANSITION_IMPORT_PATH: Record<string, string> = {
+  'fade': 'fade',
+  'slide': 'slide',
+  'wipe': 'wipe',
+  'flip': 'flip',
+  'iris': 'iris',
+  'clockWipe': 'clock-wipe',
+};
+
+function buildTransitionPresentationImports(scenes: Scene[]): string {
+  const used = new Set<string>();
+  for (const s of scenes) {
+    if (s.transitionOut && s.transitionOut.presentation !== 'none') {
+      const fn = TRANSITION_PRESENTATION_MAP[s.transitionOut.presentation];
+      if (fn) used.add(fn);
+    }
+  }
+  if (used.size === 0) return '';
+  return [...used]
+    .map((fn) => `import { ${fn} } from '@remotion/transitions/${TRANSITION_IMPORT_PATH[fn]}';`)
+    .join('\n');
+}
+
+function buildTransitionSeriesBody(scenes: Scene[]): string {
+  const lines: string[] = [];
+  scenes.forEach((s, idx) => {
+    const name = sceneIdToComponentName(s.id);
+    // Sequence for the scene itself
+    lines.push(
+      `      <TransitionSeries.Sequence durationInFrames={${s.durationFrames}}>\n        <${name} />\n      </TransitionSeries.Sequence>`
+    );
+    // Transition AFTER this scene (skipped on last scene)
+    if (idx < scenes.length - 1 && s.transitionOut && s.transitionOut.presentation !== 'none') {
+      const fn = TRANSITION_PRESENTATION_MAP[s.transitionOut.presentation];
+      const dur = s.transitionOut.durationFrames ?? 15;
+      const timing = s.transitionOut.timing === 'spring'
+        ? `springTiming({ config: { damping: ${s.transitionOut.springConfig?.damping ?? 200}, stiffness: ${s.transitionOut.springConfig?.stiffness ?? 100}, mass: ${s.transitionOut.springConfig?.mass ?? 0.5} }, durationInFrames: ${dur} })`
+        : `linearTiming({ durationInFrames: ${dur} })`;
+      const directionProp = s.transitionOut.direction
+        ? `{ direction: '${s.transitionOut.direction}' }`
+        : '';
+      lines.push(
+        `      <TransitionSeries.Transition\n        presentation={${fn}(${directionProp})}\n        timing={${timing}}\n      />`
+      );
+    }
+  });
+  return lines.join('\n');
+}
+
+// Build a stringified JS object literal of theme overrides — embedded directly in Root.tsx.
+// Reads composition.theme first; falls back to legacy composition.style if theme is absent.
+function buildThemeOverridesJson(composition: Composition): string {
+  const theme = composition.theme;
+  if (theme && Object.keys(theme).length > 0) {
+    return JSON.stringify(theme, null, 2).replace(/\n/g, '\n');
+  }
+  // Legacy fallback — synthesize ThemeOverrides from old style block
+  const legacy = composition.style;
+  if (legacy) {
+    const overrides: Record<string, unknown> = {};
+    const colorOverrides: Record<string, string> = {};
+    if (legacy.primaryColor) colorOverrides.primary = legacy.primaryColor;
+    if (legacy.secondaryColor) colorOverrides.secondary = legacy.secondaryColor;
+    if (legacy.accentColor) colorOverrides.tertiary = legacy.accentColor;
+    if (legacy.defaultTextColor) {
+      colorOverrides.onSurface = legacy.defaultTextColor;
+      colorOverrides.onBackground = legacy.defaultTextColor;
+    }
+    if (Object.keys(colorOverrides).length > 0) overrides.colorOverrides = colorOverrides;
+    if (legacy.fontFamily) overrides.fontFamily = legacy.fontFamily;
+    if (legacy.headingFontFamily) overrides.headingFontFamily = legacy.headingFontFamily;
+    return JSON.stringify(overrides, null, 2);
+  }
+  return '{}';
 }
 
 // Sanitize a scene name to a safe filename segment (kebab-case, no spaces/special chars)

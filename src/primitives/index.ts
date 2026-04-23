@@ -9,9 +9,45 @@ export type { AnimatedImageProps } from './AnimatedImage';
 export { AnimatedShape } from './AnimatedShape';
 export type { AnimatedShapeProps, ShapeType } from './AnimatedShape';
 
-// Background
+// Per-character and per-word text reveals — for kinetic typography
+export { AnimatedTextChars } from './AnimatedTextChars';
+export type { AnimatedTextCharsProps, CharEntranceType, StaggerPattern } from './AnimatedTextChars';
+
+export { AnimatedTextWords } from './AnimatedTextWords';
+export type { AnimatedTextWordsProps, WordEntranceType } from './AnimatedTextWords';
+
+// Captions — TikTok-style word-level highlighted captions via @remotion/captions
+export { Captions } from './Captions';
+export type { CaptionsProps } from './Captions';
+
+// Background + decorative
 export { Background } from './Background';
 export type { BackgroundProps } from './Background';
+
+export { Gradient } from './Gradient';
+export type { GradientProps, GradientType } from './Gradient';
+
+export { FilmGrain } from './FilmGrain';
+export type { FilmGrainProps } from './FilmGrain';
+
+// Effects (wrap any child)
+export { Glow } from './Glow';
+export type { GlowProps } from './Glow';
+
+export { MotionBlur } from './MotionBlur';
+export type { MotionBlurProps } from './MotionBlur';
+
+// Image effects
+export { KenBurns } from './KenBurns';
+export type { KenBurnsProps, PanDirection } from './KenBurns';
+
+// SVG path morphing — logo reveals, shape transforms
+export { MorphPath } from './MorphPath';
+export type { MorphPathProps } from './MorphPath';
+
+// Lottie animation player
+export { LottiePlayer } from './LottiePlayer';
+export type { LottiePlayerProps } from './LottiePlayer';
 
 // Layout primitives
 export { LayoutStack } from './LayoutStack';
@@ -35,3 +71,7 @@ export type { BeatSyncProps, BeatData } from './BeatSync';
 // Animation engine (for advanced use — custom animations beyond presets)
 export { useAnimation } from './useAnimation';
 export type { AnimationConfig, AnimationValues, EntranceType, ExitType } from './useAnimation';
+
+// Design token system — useTheme(), Theme, color/type/motion/spacing tokens
+// Pull tokens in any primitive: const { color, type, springs } = useTheme()
+export * from './tokens';

@@ -205,10 +205,14 @@ export function registerListTemplates(server: McpServer): void {
   server.registerTool(
     'list_templates',
     {
-      title: 'List Templates',
-      description: `Returns a catalog of all built-in scene templates with their props, layout, default
-animation, and best-use-cases. Call this to discover what templates are available before
-creating scenes. No projectPath required — this is static metadata.`,
+      title: 'List Templates (Inspiration Only)',
+      description: `Returns LAYOUT INSPIRATION patterns — these are NOT pre-built components in the
+scaffolded project, just descriptions of common scene layouts. The default and recommended
+path is to use create_scene with componentCode that composes primitives directly. Call
+list_primitives + list_tokens for the actual building blocks.
+
+Use this tool only when you want layout inspiration for a common scene shape (title card,
+text + image, code block). Then write componentCode that achieves that layout using primitives.`,
       inputSchema: {},
     },
     async () => {
@@ -217,17 +221,15 @@ creating scenes. No projectPath required — this is static metadata.`,
           type: 'text' as const,
           text: JSON.stringify({
             status: 'success',
+            disclaimer: 'These are LAYOUT PATTERNS, not pre-built components. The scaffolded project does NOT contain TitleCard.tsx, TextScene.tsx, etc. Use componentCode with primitives instead — see list_primitives.',
             templateCount: TEMPLATE_CATALOG.length,
             templates: TEMPLATE_CATALOG,
-            entrancePresets: [
-              { name: 'fade-up', description: 'Fade in while sliding up (default for most templates)' },
-              { name: 'fly-from-left', description: 'Spring in from the left edge' },
-              { name: 'fly-from-right', description: 'Spring in from the right edge' },
-              { name: 'fly-from-bottom', description: 'Spring in from below' },
-              { name: 'zoom-in', description: 'Scale up from 50% to 100%' },
-              { name: 'drop-in', description: 'Drop from above with bounce' },
-            ],
-            next_steps: 'Use a sceneType value in create_scene to build a scene. Pass props as documented.',
+            preferredPath: {
+              instead_of: 'create_scene({ sceneType: "title-card", props: { title: "Hi" } })',
+              do: 'create_scene({ componentCode: <TSX importing AnimatedText + Background + useTheme from "../src/primitives"> })',
+              why: 'Open composition gives unlimited flexibility + token-driven theming. Templates are only inspiration for layout patterns.',
+            },
+            next_steps: 'Call list_primitives for the actual components, then write componentCode that achieves the layout you want.',
           }, null, 2),
         }],
       };

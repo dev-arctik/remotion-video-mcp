@@ -32,6 +32,17 @@ import { registerRemoveOverlay } from './tools/remove-overlay.js';
 
 // Phase 6 — Recovery & Discovery
 import { registerRegenerateRoot } from './tools/regenerate-root.js';
+import { registerListTemplates } from './tools/list-templates.js';
+
+// Phase 7 — Open Composition (design tokens, primitives discovery, transitions, captions, Lottie)
+import { registerSetTheme } from './tools/set-theme.js';
+import { registerGetTheme } from './tools/get-theme.js';
+import { registerListTokens } from './tools/list-tokens.js';
+import { registerListPrimitives } from './tools/list-primitives.js';
+import { registerListMotionPresets } from './tools/list-motion-presets.js';
+import { registerAddTransition } from './tools/add-transition.js';
+import { registerImportCaptions } from './tools/import-captions.js';
+import { registerImportLottie } from './tools/import-lottie.js';
 
 export function setupServer(server: McpServer): void {
   // Phase 1
@@ -64,6 +75,17 @@ export function setupServer(server: McpServer): void {
   registerAddOverlay(server);
   registerRemoveOverlay(server);
 
-  // Phase 6 — Recovery
+  // Phase 6 — Recovery + Discovery
   registerRegenerateRoot(server);
+  registerListTemplates(server);
+
+  // Phase 7 — Open Composition primitives + design tokens
+  registerSetTheme(server);
+  registerGetTheme(server);
+  registerListTokens(server);
+  registerListPrimitives(server);
+  registerListMotionPresets(server);
+  registerAddTransition(server);
+  registerImportCaptions(server);
+  registerImportLottie(server);
 }

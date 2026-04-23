@@ -1,6 +1,22 @@
 import fs from 'fs-extra';
 import path from 'path';
 
+// Theme overrides — partial customization layered on top of defaultTheme.
+// Stored sparsely in composition.json; resolved to full Theme at render time
+// by buildTheme() in src/primitives/tokens/theme.ts.
+export interface ThemeOverridesJson {
+  // Pick one of: 'editorial-dark', 'editorial-light', 'cinematic-noir',
+  // 'electric-blue', 'forest-warm', or omit to use 'editorial-dark'.
+  palette?: string;
+  // Override individual color roles (e.g. { primary: '#FF0000' })
+  colorOverrides?: Record<string, string>;
+  // Override individual type styles (e.g. { displayLarge: { fontSize: 200 } })
+  typeOverrides?: Record<string, Partial<{ fontSize: number; lineHeight: number; letterSpacing: number; fontWeight: number; fontFamily: string }>>;
+  // Font family — string CSS stack OR named stack ('modern', 'display', 'editorial', 'mono', 'poster')
+  fontFamily?: string;
+  headingFontFamily?: string;
+}
+
 // Composition shape — mirrors composition.json exactly
 export interface Composition {
   version: string;
@@ -17,6 +33,8 @@ export interface Composition {
     totalDurationFrames: number | null;
     backgroundColor: string;
   };
+  // Legacy style block — kept for back-compat with existing projects.
+  // Prefer the `theme` field below for new work.
   style: {
     theme: string;
     primaryColor: string;
@@ -27,6 +45,9 @@ export interface Composition {
     defaultTextColor: string;
     defaultFontSize: number;
   };
+  // NEW: full design token theme — managed via set_theme MCP tool.
+  // When present, this is the source of truth (overrides `style`).
+  theme?: ThemeOverridesJson;
   audio: {
     type: 'narration' | 'background' | 'none';
     narration?: { src: string; volume?: number };
@@ -34,6 +55,25 @@ export interface Composition {
   };
   scenes: Scene[];
   overlays?: Overlay[];
+  // NEW: word-level captions imported via import_captions tool.
+  // Each captions track is a separate file in assets/captions/.
+  captions?: Caption[];
+}
+
+// Caption track — references a JSON file in assets/captions/ holding parsed
+// @remotion/captions Caption[]. Use TikTok-style overlay by referencing the id.
+export interface Caption {
+  id: string;
+  name: string;
+  file: string;          // project-relative path, e.g. "assets/captions/voiceover.json"
+  language?: string;     // BCP 47 tag, e.g. "en-US"
+  // Display config — applied if Captions primitive references this id without props
+  defaultStyle?: {
+    fontSize?: number;
+    color?: string;
+    backgroundColor?: string;
+    position?: 'top' | 'middle' | 'bottom';
+  };
 }
 
 // Overlay — a component that renders on top of scenes (e.g., logo, watermark, animation)
@@ -47,6 +87,18 @@ export interface Overlay {
   endFrame?: number;     // last frame the overlay appears — omit for full-video-duration
 }
 
+// Scene transition — declarative spec used to wrap scenes in <TransitionSeries>.
+// `presentation` maps to a @remotion/transitions presentation (fade/slide/wipe/iris/clockWipe/flip/none).
+// `timing` chooses spring vs linear timing.
+// `direction` is consumed by slide/wipe/clockWipe.
+export interface SceneTransition {
+  presentation: 'fade' | 'slide' | 'wipe' | 'flip' | 'iris' | 'clock-wipe' | 'none';
+  timing?: 'linear' | 'spring';
+  durationFrames?: number;       // total transition duration
+  direction?: 'from-left' | 'from-right' | 'from-top' | 'from-bottom';
+  springConfig?: { damping?: number; stiffness?: number; mass?: number };
+}
+
 export interface Scene {
   id: string;
   name: string;
@@ -55,6 +107,10 @@ export interface Scene {
   durationFrames: number;
   startFrame: number;
   audioSegmentIds?: string[];
+  // OUT-transition between this scene and the NEXT one.
+  // The first scene has no incoming transition; the last scene's transitionOut is ignored.
+  transitionOut?: SceneTransition;
+  // Legacy nested transition shape — preserved for back-compat
   transition?: {
     in: { type: string; durationFrames?: number };
     out: { type: string; durationFrames?: number };
