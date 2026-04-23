@@ -118,42 +118,85 @@ For real-time audio reactivity in scenes, use the AudioReactive primitive in com
           };
         }
 
-        // Save analysis JSON sidecar
+        // Save analysis JSON sidecar — full events[] + beats[] live here
         const audioNameWithoutExt = path.basename(args.audioFile, ext);
         const analysisFilename = `${audioNameWithoutExt}-analysis.json`;
         const analysisPath = path.join(args.projectPath, 'assets', 'audio', analysisFilename);
         await fs.writeJson(analysisPath, result, { spaces: 2 });
 
-        // Build next_steps guidance
-        const eventSummary = result.events.length > 0
-          ? result.events
-              .sort((a, b) => b.intensity - a.intensity)
+        // ─── Build compact MCP response ─────────────────────────────────────
+        // Full events[] + beats[] can exceed 25k tokens on long tracks — must stay
+        // OUT of the response. Claude reads the sidecar with offset/limit if needed.
+
+        // Count events by type — tells Claude what's available without listing them
+        const eventTypeCounts: Record<string, number> = {};
+        for (const e of result.events) {
+          eventTypeCounts[e.type] = (eventTypeCounts[e.type] ?? 0) + 1;
+        }
+
+        // Top 10 events by intensity — strongest beats / drops / impacts
+        const topEvents = result.events
+          .slice()
+          .sort((a, b) => b.intensity - a.intensity)
+          .slice(0, 10)
+          .map(e => ({
+            type: e.type,
+            frame: e.frame,
+            time: e.time,
+            intensity: Math.round(e.intensity * 100) / 100,
+          }));
+
+        // Per-type top 3 — so if Claude wants "the 3 biggest bass-drops" they're already surfaced
+        const topByType: Record<string, typeof topEvents> = {};
+        for (const type of Object.keys(eventTypeCounts)) {
+          topByType[type] = result.events
+            .filter(e => e.type === type)
+            .sort((a, b) => b.intensity - a.intensity)
+            .slice(0, 3)
+            .map(e => ({
+              type: e.type,
+              frame: e.frame,
+              time: e.time,
+              intensity: Math.round(e.intensity * 100) / 100,
+            }));
+        }
+
+        const eventSummaryLine = result.events.length > 0
+          ? topEvents
               .slice(0, 5)
               .map(e => `  - ${e.type} at frame ${e.frame} (${e.time}s) — intensity ${Math.round(e.intensity * 100)}%`)
               .join('\n')
           : '  No dramatic events detected — this may be ambient or very uniform audio.';
 
         const cutSummary = result.suggestedSceneCuts
+          .slice(0, 20) // cap even suggested cuts — long tracks can have 30+
           .map(c => `  - Frame ${c.frame}: ${c.reason}`)
           .join('\n');
 
         const nextSteps = [
-          `Analysis saved to assets/audio/${analysisFilename}.`,
+          `Full analysis saved to assets/audio/${analysisFilename}.`,
+          `Response intentionally compact — full events[] / beats[] live in the sidecar JSON.`,
           ``,
           `Top events (strongest first):`,
-          eventSummary,
+          eventSummaryLine,
           ``,
-          `Suggested scene cuts:`,
+          `Suggested scene cuts (first ${Math.min(20, result.suggestedSceneCuts.length)}):`,
           cutSummary,
           ``,
           result.bpm > 0
             ? `BPM: ${result.bpm} — use suggestedSceneDurations for beat-aligned scene lengths.`
             : `No BPM detected — use events and energy shifts to guide scene timing.`,
           ``,
+          `TO READ SPECIFIC DATA FROM THE SIDECAR:`,
+          `  • read_file with offset/limit for chunks of the JSON`,
+          `  • For programmatic filtering (e.g. all bass-drops with intensity > 0.8),`,
+          `    write a small node script rather than reading the whole file.`,
+          ``,
           `For real-time audio reactivity in scenes, wrap elements in <AudioReactive>:`,
           `  import { AudioReactive, useAudioReactive } from '../src/primitives';`,
         ].join('\n');
 
+        // Build compact response — NO events[] or beats[] spread
         return {
           content: [{
             type: 'text' as const,
@@ -161,7 +204,22 @@ For real-time audio reactivity in scenes, use the AudioReactive primitive in com
               status: 'success',
               audioFile: args.audioFile,
               analysisJsonPath: `assets/audio/${analysisFilename}`,
-              ...result,
+              // scalar / short fields only — safe to inline
+              duration: result.duration,
+              bpm: result.bpm,
+              beatCount: result.beatCount,
+              beatIntervalMs: result.beatIntervalMs,
+              suggestedSceneDurations: result.suggestedSceneDurations,
+              frequencyProfile: result.frequencyProfile,
+              // compact event summaries — truncated
+              eventsTotal: result.events.length,
+              eventTypeCounts,
+              topEvents,      // top 10 overall
+              topByType,      // top 3 per type
+              suggestedSceneCuts: result.suggestedSceneCuts.slice(0, 20),
+              suggestedSceneCutsTotal: result.suggestedSceneCuts.length,
+              // first 5 beats preview — full array in sidecar
+              beatsPreview: result.beats.slice(0, 5),
               next_steps: nextSteps,
             }, null, 2),
           }],
